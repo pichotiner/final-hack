@@ -1,6 +1,6 @@
 # Инструкции для кодовых агентов в этом репозитории
 
-Перед изменением кода прочитайте `README.md`, `docs/requirements.md`, `docs/contracts.md`, `docs/roles.md` и `docs/plan.md`. `docs/contracts.md` — согласуемый проект контракта; сообщайте о нужных изменениях до расхождения frontend/backend/emulator.
+Перед изменением кода прочитайте `README.md`, `docs/requirements.md`, `docs/contracts.md`, `docs/roles.md`, `docs/plan.md`, `docs/technical-decisions.md` и `docs/first-slice.md`. `docs/contracts.md` v0.2 — рабочая семантика контракта, формальная OpenAPI-спецификация ещё предстоит; сообщайте о нужных изменениях до расхождения frontend/backend/emulator. Выбранный стек и границы транзакций зафиксированы в `docs/technical-decisions.md`.
 
 Ролей две. №1 — разработчик с GPT Astra: backend, архитектура, расчёт аналитики, надёжность, безопасность и запуск. №2 — второй разработчик: frontend, эмулятор, данные, интеграционные адаптеры, спецификация и кодогенерация, CI и материалы защиты. Границы файлов и совместных изменений определены в `docs/roles.md`; сгенерированные файлы вручную не редактировать.
 
