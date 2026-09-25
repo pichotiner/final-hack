@@ -4,6 +4,8 @@
 
 После консультации с экспертом план изменён. Главный результат ближайшего этапа — **не кодовая база, а защищаемая архитектура**.
 
+Ближайшая последовательность, владельцы и глубина критериев уточнены в [architecture-rework-plan.md](architecture-rework-plan.md). Стартовые схема, пример и методы внедрения — в [architecture-design-brief.md](architecture-design-brief.md). Этапы ниже — расширенный backlog; первая поставка каждой роли указана в начале [roles.md](roles.md).
+
 Ранние решения по FastAPI/PostgreSQL/React остаются возможной реализационной гипотезой, но до архитектурного freeze они не должны диктовать устройство системы.
 
 Основные документы:
@@ -49,10 +51,10 @@ Constraint
 ### Роль №1
 
 Сравнивает:
-- CRUD/state-centric;
+- CRUD/state-centric с полноценным аудитом и версионированием;
 - Event Sourcing;
 - Event Sourcing + Evidence Graph;
-- при необходимости microservices/event-broker.
+- отдельно, как независимую ось, deployment и транспорт: модульное ядро/microservices, HTTP/outbox/broker.
 
 ### Роль №2
 
@@ -137,7 +139,7 @@ ADR и таблица trade-offs.
 4. late event;
 5. central link down;
 6. ERP down;
-7. cannot_assess;
+7. not_assessable;
 8. analyzer v2;
 9. tamper attempt.
 
