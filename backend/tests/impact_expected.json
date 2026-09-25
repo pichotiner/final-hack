@@ -1,0 +1,79 @@
+{
+  "late-component": {
+    "requires_assessment": ["assembly-001", "insert-001"],
+    "possibly_affected": [],
+    "excluded_under_assumptions": ["assembly-002", "assembly-003", "insert-002", "module-001"],
+    "coverage": "complete", "issues": [],
+    "paths": {"assembly-001": ["RC", "insert-001", "M1", "assembly-001"]}
+  },
+  "removed-component": {
+    "requires_assessment": ["assembly-001", "assembly-003", "insert-001"],
+    "possibly_affected": [],
+    "excluded_under_assumptions": ["assembly-002", "insert-002", "module-001"],
+    "coverage": "complete", "issues": [],
+    "paths": {"assembly-001": ["RC", "insert-001", "M1", "assembly-001"], "assembly-003": ["RC", "insert-001", "M3", "assembly-003"]}
+  },
+  "corrected-membership": {
+    "requires_assessment": ["assembly-001", "assembly-003", "insert-001"],
+    "possibly_affected": [],
+    "excluded_under_assumptions": ["assembly-002", "insert-002", "module-001"],
+    "coverage": "complete", "issues": [],
+    "paths": {"assembly-001": ["correction-M1", "insert-001", "M1", "assembly-001"]}
+  },
+  "uncertain-component": {
+    "requires_assessment": [],
+    "possibly_affected": ["assembly-001", "assembly-002", "insert-001", "insert-002"],
+    "excluded_under_assumptions": ["assembly-003", "module-001"],
+    "coverage": "bounded_candidates", "issues": [],
+    "paths": {"assembly-002": ["U1", "insert-002", "M2", "assembly-002"]}
+  },
+  "unknown-scope": {
+    "requires_assessment": [],
+    "possibly_affected": ["assembly-001", "assembly-002", "assembly-003", "insert-001", "insert-002", "module-001"],
+    "excluded_under_assumptions": [],
+    "coverage": "open", "issues": ["identity_scope_unknown"],
+    "paths": {"module-001": ["U2", "scope_unknown", "module-001"]}
+  },
+  "missing-completeness": {
+    "requires_assessment": ["assembly-001", "insert-001"],
+    "possibly_affected": ["assembly-002", "assembly-003", "insert-002", "module-001"],
+    "excluded_under_assumptions": [],
+    "coverage": "open", "issues": ["membership_completeness_unproven"],
+    "paths": {"assembly-002": ["RC", "scope_unknown", "assembly-002"]}
+  },
+  "before-membership": {
+    "requires_assessment": ["insert-001"],
+    "possibly_affected": ["assembly-001", "assembly-002", "assembly-003", "insert-002", "module-001"],
+    "excluded_under_assumptions": [],
+    "coverage": "open", "issues": ["membership_completeness_unproven"],
+    "paths": {}
+  },
+  "nested-assembly": {
+    "requires_assessment": ["assembly-001", "assembly-003", "insert-001", "module-001"],
+    "possibly_affected": [],
+    "excluded_under_assumptions": ["assembly-002", "insert-002"],
+    "coverage": "complete", "issues": [],
+    "paths": {"module-001": ["RC", "insert-001", "M1", "assembly-001", "M4", "module-001"]}
+  },
+  "current-cycle": {
+    "requires_assessment": ["assembly-001", "insert-001"],
+    "possibly_affected": ["assembly-002", "assembly-003", "insert-002", "module-001"],
+    "excluded_under_assumptions": [],
+    "coverage": "open", "issues": ["current_membership_cycle"],
+    "paths": {}
+  },
+  "historical-cycle": {
+    "requires_assessment": ["assembly-001", "insert-001"],
+    "possibly_affected": [],
+    "excluded_under_assumptions": ["assembly-002", "assembly-003", "insert-002", "module-001"],
+    "coverage": "complete", "issues": [],
+    "paths": {}
+  },
+  "independent-component": {
+    "requires_assessment": ["assembly-002", "insert-002"],
+    "possibly_affected": [],
+    "excluded_under_assumptions": ["assembly-001", "assembly-003", "insert-001", "module-001"],
+    "coverage": "complete", "issues": [],
+    "paths": {"assembly-002": ["RC2", "insert-002", "M2", "assembly-002"]}
+  }
+}

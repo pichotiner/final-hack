@@ -39,6 +39,33 @@ py -3.11 -m venv .venv
 
 Предыдущий срез журнала содержал 50 тестов (37 + 13); все они включены в текущий прогон. Интеграционный запуск применяет обе миграции в изолированной PostgreSQL и проверяет соответствие схемы модели хранения; созданные им контейнер, сеть и том удаляются после тестов.
 
+## Локальный эксперимент стоимости истории
+
+Из каталога `backend/`, в установленном окружении:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/measure_replay.py --operations 50 250 1000 --repeats 7 --growth-operations 20 40 80
+```
+
+Скрипт сравнивает обычные операции и длинную цепочку доработок: время reducer, время подготовки JSON, размер последнего снимка и сумму полных версий. Синтетические входы строятся в памяти, проверяются длительности и независимость результата от порядка доставки. БД и Docker не требуются. Для автоматического сохранения добавить `--output <новый-путь.json>` в существующем каталоге: UTF-8, без перезаписи старого результата.
+
+Методика, два сохранённых отчёта, границы и предложение масштабирования — [scaling.md](../docs/architecture/scaling.md). Это не замер приёма/SQL/шифрования, размера БД или нагрузки всей системы.
+
+## Терминальный эксперимент «радиус проверки»
+
+Из `backend/`:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/impact_experiment.py --case late-component
+.\.venv\Scripts\python.exe scripts/impact_experiment.py --case removed-component
+.\.venv\Scripts\python.exe scripts/impact_experiment.py --case missing-completeness
+.\.venv\Scripts\python.exe -m pytest tests/test_impact_experiment.py
+```
+
+Показывает путь сигнала компонента к сборке, прежнюю сборку после снятия и открытый охват при неизвестной полноте. `--json` выводит структурированные объяснения. **25 тестов прошли**, включая 384 сравнения с независимым полным перебором. Входы `scripts/impact_inputs.json` и ожидания `tests/impact_expected.json` разделены.
+
+Это отдельная синтетическая модель в памяти; к приёму событий/БД, решениям, выпуску и ERP она не подключена. Методика и точная граница доказательства — [impact-experiment.md](../docs/architecture/impact-experiment.md).
+
 ## Миграции и отдельная dev-БД
 
 Из корня репозитория, после задания локального `POSTGRES_PASSWORD` в окружении:
@@ -101,6 +128,8 @@ app/adapters/traceability.py блокировки, проверка исходн
 migrations/                 Alembic и append-only ограничения
 tests/                      предметные и PostgreSQL-проверки
 scripts/test_postgres.py     изолированный воспроизводимый запуск тестов БД
+scripts/measure_replay.py    локальный замер reducer и JSON-версий истории
+scripts/impact_experiment.py синтетический поиск влияния по составу с объяснениями
 ```
 
 ## Граница с работой роли №2
