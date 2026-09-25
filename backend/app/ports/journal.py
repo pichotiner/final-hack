@@ -17,7 +17,8 @@ class EventJournal(Protocol):
     def append_if_absent(self, event: StoredEvent) -> tuple[StoredEvent, bool]:
         """Return the committed original record and whether this call inserted it.
 
-        The initial unresolved projection is created atomically with a new record.
+        The initial projection is created atomically with a new record. Adapters
+        may finalize and reseal the initial receipt before persisting the record.
         A duplicate must never overwrite either record or projection.
         """
         ...

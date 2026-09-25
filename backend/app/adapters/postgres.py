@@ -3,6 +3,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     LargeBinary,
     MetaData,
@@ -12,7 +13,7 @@ from sqlalchemy import (
     select,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID, insert
-from sqlalchemy.engine import Engine, RowMapping
+from sqlalchemy.engine import Connection, Engine, RowMapping
 
 from app.domain.events import (
     EventEnvelope,
@@ -62,6 +63,30 @@ event_projections = Table(
     CheckConstraint("status IN ('applied', 'unresolved')", name="ck_event_projection_status"),
     CheckConstraint("revision >= 1", name="ck_event_projection_revision"),
 )
+
+item_projections = Table(
+    "item_projections",
+    metadata,
+    Column("item_id", String(128), primary_key=True),
+    Column("revision", Integer, nullable=False),
+    Column("processor_version", String(64), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    Column("snapshot", JSONB, nullable=False),
+    CheckConstraint("revision >= 1", name="ck_item_projection_revision"),
+)
+
+item_projection_versions = Table(
+    "item_projection_versions",
+    metadata,
+    Column("item_id", String(128), ForeignKey("item_projections.item_id"), primary_key=True),
+    Column("revision", Integer, primary_key=True),
+    Column("processor_version", String(64), nullable=False),
+    Column("computed_at", DateTime(timezone=True), nullable=False),
+    Column("snapshot", JSONB, nullable=False),
+    CheckConstraint("revision >= 1", name="ck_item_projection_version_revision"),
+)
+
+Index("ix_raw_events_item_id", raw_events.c.item_id)
 
 
 def _values(event: StoredEvent) -> dict:
@@ -127,40 +152,43 @@ class PostgresEventJournal:
         self.engine = engine
 
     def append_if_absent(self, event: StoredEvent) -> tuple[StoredEvent, bool]:
-        envelope = event.metadata.envelope
         # PostgreSQL's unique constraint serializes contenders for the same key.
         # A separate SELECT sees the winner under READ COMMITTED after waiting.
         # Never emit an accepted receipt until the transaction has committed.
         with self.engine.begin() as connection:
-            inserted_id = connection.execute(
-                insert(raw_events)
-                .values(**_values(event))
-                .on_conflict_do_nothing(constraint="uq_raw_events_source_event")
-                .returning(raw_events.c.record_id)
-            ).scalar_one_or_none()
-            inserted = inserted_id is not None
-            if inserted:
-                connection.execute(
-                    event_projections.insert().values(
-                        record_id=event.metadata.record_id,
-                        status=event.metadata.initial_projection_status,
-                        issues=list(event.metadata.initial_issues),
-                        revision=1,
-                        updated_at=event.metadata.received_at,
-                    )
+            return self._append(connection, event)
+
+    def _append(self, connection: Connection, event: StoredEvent) -> tuple[StoredEvent, bool]:
+        """Persist within the caller's transaction, never commit independently."""
+        envelope = event.metadata.envelope
+        inserted_id = connection.execute(
+            insert(raw_events)
+            .values(**_values(event))
+            .on_conflict_do_nothing(constraint="uq_raw_events_source_event")
+            .returning(raw_events.c.record_id)
+        ).scalar_one_or_none()
+        inserted = inserted_id is not None
+        if inserted:
+            connection.execute(
+                event_projections.insert().values(
+                    record_id=event.metadata.record_id,
+                    status=event.metadata.initial_projection_status,
+                    issues=list(event.metadata.initial_issues),
+                    revision=1,
+                    updated_at=event.metadata.received_at,
                 )
-            row = (
-                connection.execute(
-                    select(raw_events).where(
-                        raw_events.c.source_id == envelope.source_id,
-                        raw_events.c.event_id == envelope.event_id,
-                    )
-                )
-                .mappings()
-                .one()
             )
-            stored = _record(row)
-        return stored, inserted
+        row = (
+            connection.execute(
+                select(raw_events).where(
+                    raw_events.c.source_id == envelope.source_id,
+                    raw_events.c.event_id == envelope.event_id,
+                )
+            )
+            .mappings()
+            .one()
+        )
+        return _record(row), inserted
 
     def get(self, source_id: str, event_id: str) -> StoredEvent | None:
         """Return a protected record. Callers must authenticate it before use."""

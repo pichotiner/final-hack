@@ -42,6 +42,12 @@ def database():
             connection.execute(
                 text(f'GRANT SELECT, INSERT, UPDATE ON event_projections TO "{writer_role}"')
             )
+            connection.execute(
+                text(f'GRANT SELECT, INSERT, UPDATE ON item_projections TO "{writer_role}"')
+            )
+            connection.execute(
+                text(f'GRANT SELECT, INSERT ON item_projection_versions TO "{writer_role}"')
+            )
         yield admin, writer, config
     finally:
         writer.dispose()

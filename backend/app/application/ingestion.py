@@ -12,8 +12,9 @@ class IngestEvent:
     """Internal envelope journal, not an authenticated public ingestion endpoint.
 
     The future transport must authenticate its source and validate generated
-    type-specific DTOs before invoking this service. Projection work is explicitly
-    unresolved until the production domain processor is connected.
+    type-specific DTOs before invoking this service. The plain journal leaves
+    processing unresolved. A traceability journal computes and seals its initial
+    receipt within the same transaction as the raw record and derived history.
     """
 
     def __init__(
