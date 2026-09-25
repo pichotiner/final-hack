@@ -15,6 +15,7 @@ from app.adapters.postgres import (
     item_projections,
     raw_events,
 )
+from app.adapters.quality import PostgresQualityWorkflow, quality_commands, quality_outbox
 from app.adapters.traceability import PostgresTraceabilityJournal
 from app.application.ingestion import IngestEvent
 from app.domain.errors import EventConflict, IntegrityViolation, InvalidEvent
@@ -319,3 +320,55 @@ def test_old_versions_are_append_only_even_for_owner(trace, statement):
         connection.execute(text(statement), {"item": item_id})
     assert error.value.orig.sqlstate == "42501"
     assert journal.get_history(item_id, revision=1) is not None
+
+
+def test_quality_workflow_persists_basis_decision_and_idempotent_outbox(trace):
+    admin, writer, _, _, _, _ = trace
+    workflow = PostgresQualityWorkflow(writer)
+    item_id = f"quality-{uuid4().hex}"
+    workflow.open_item(item_id, required_checkpoints=("incoming", "final"))
+    workflow.record_observation(
+        item_id,
+        observation_id="incoming-1",
+        checkpoint_id="incoming",
+        result="no_defect_signs",
+    )
+    workflow.record_observation(
+        item_id,
+        observation_id="defect-1",
+        checkpoint_id="final",
+        result="defect_signs",
+        defect_ref="mark-001",
+        defect_type="surface-mark",
+    )
+    state = workflow.state(item_id)
+    nonconformity_id = state["nonconformities"][0]["nonconformity_id"]
+    basis = workflow.create_basis(item_id, target_id=nonconformity_id)
+    command = dict(
+        action="confirm",
+        reason="visible mark",
+        actor_id="inspector-1",
+        expected_revision=basis["context_revision"],
+        expected_basis_id=basis["basis_id"],
+        idempotency_key="confirm-1",
+    )
+    first = workflow.decide_nonconformity(nonconformity_id, **command)
+    second = workflow.decide_nonconformity(nonconformity_id, **command)
+    assert second == first
+    with admin.connect() as connection:
+        assert (
+            connection.scalar(
+                select(func.count())
+                .select_from(quality_commands)
+                .where(quality_commands.c.target_id == nonconformity_id)
+            )
+            == 1
+        )
+        assert (
+            connection.scalar(
+                select(func.count())
+                .select_from(quality_outbox)
+                .where(quality_outbox.c.item_id == item_id)
+            )
+            == 3
+        )

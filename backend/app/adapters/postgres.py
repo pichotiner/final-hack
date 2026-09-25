@@ -88,6 +88,72 @@ item_projection_versions = Table(
 
 Index("ix_raw_events_item_id", raw_events.c.item_id)
 
+quality_items = Table(
+    "quality_items",
+    metadata,
+    Column("item_id", String(128), primary_key=True),
+    Column("context_revision", Integer, nullable=False),
+    Column("state", JSONB, nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint("context_revision >= 0", name="ck_quality_item_revision"),
+)
+
+quality_bases = Table(
+    "quality_bases",
+    metadata,
+    Column("basis_id", String(128), primary_key=True),
+    Column("item_id", String(128), nullable=False),
+    Column("context_revision", Integer, nullable=False),
+    Column("target_id", String(128)),
+    Column("snapshot", JSONB, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+quality_commands = Table(
+    "quality_commands",
+    metadata,
+    Column("actor_id", String(128), primary_key=True),
+    Column("command_type", String(64), primary_key=True),
+    Column("target_id", String(128), primary_key=True),
+    Column("idempotency_key", String(128), primary_key=True),
+    Column("command_digest", String(64), nullable=False),
+    Column("result", JSONB, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+quality_decisions = Table(
+    "quality_decisions",
+    metadata,
+    Column("decision_id", String(128), primary_key=True),
+    Column("item_id", String(128), nullable=False),
+    Column("target_id", String(128), nullable=False),
+    Column("command_type", String(64), nullable=False),
+    Column("action", String(64), nullable=False),
+    Column("decision", JSONB, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+quality_outbox = Table(
+    "quality_outbox",
+    metadata,
+    Column("message_id", String(128), primary_key=True),
+    Column("item_id", String(128), nullable=False),
+    Column("result_version", Integer, nullable=False),
+    Column("previous_message_id", String(128)),
+    Column("context_revision", Integer, nullable=False),
+    Column("payload", JSONB, nullable=False),
+    Column("content_digest", String(64), nullable=False),
+    Column("status", String(32), nullable=False),
+    Column("ack", JSONB),
+    Column("attempts", Integer, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("item_id", "result_version", name="uq_quality_outbox_item_version"),
+)
+
+Index("ix_quality_bases_item_id", quality_bases.c.item_id)
+Index("ix_quality_decisions_item_id", quality_decisions.c.item_id)
+Index("ix_quality_outbox_item_id", quality_outbox.c.item_id)
+
 
 def _values(event: StoredEvent) -> dict:
     meta, envelope, protection = event.metadata, event.metadata.envelope, event.protection

@@ -34,3 +34,35 @@ class KeyUnavailable(QualityError):
 
 class UnsupportedCryptoProfile(QualityError):
     code = "unsupported_crypto_profile"
+
+
+class StaleRevision(QualityError):
+    code = "stale_revision"
+
+
+class BasisMismatch(QualityError):
+    code = "basis_mismatch"
+
+
+class InvalidTransition(QualityError):
+    code = "invalid_transition"
+
+
+class ReleaseBlocked(QualityError):
+    code = "release_blocked"
+
+    def __init__(self, blockers: tuple[str, ...] | list[str]) -> None:
+        self.blockers = tuple(blockers)
+        super().__init__("Release is blocked by the current quality context.")
+
+
+class IdempotencyConflict(QualityError):
+    code = "idempotency_conflict"
+
+
+class AckMismatch(QualityError):
+    code = "ack_mismatch"
+
+
+class UnknownEntity(QualityError):
+    code = "unknown_entity"

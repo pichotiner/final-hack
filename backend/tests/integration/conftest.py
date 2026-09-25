@@ -48,6 +48,12 @@ def database():
             connection.execute(
                 text(f'GRANT SELECT, INSERT ON item_projection_versions TO "{writer_role}"')
             )
+            connection.execute(
+                text(
+                    f"GRANT SELECT, INSERT, UPDATE ON quality_items, quality_bases, "
+                    f'quality_commands, quality_decisions, quality_outbox TO "{writer_role}"'
+                )
+            )
         yield admin, writer, config
     finally:
         writer.dispose()
