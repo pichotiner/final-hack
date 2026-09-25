@@ -1,0 +1,10 @@
+{
+  "messageId": "gal-msg-001",
+  "orderNo": "001",
+  "revision": 1,
+  "batchItemNo": "assembly-001",
+  "productCode": "bracket-demo",
+  "routeCode": "route-bracket",
+  "routeVersion": "1",
+  "controlPoints": ["incoming-incoming", "station-assembly-final"]
+}

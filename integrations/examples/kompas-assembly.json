@@ -1,0 +1,8 @@
+{
+  "assemblyId": "assembly-001",
+  "version": "1",
+  "components": [
+    { "id": "bracket-001", "partNo": "bracket", "quantity": 1 },
+    { "id": "insert-001", "partNo": "insert", "quantity": 1 }
+  ]
+}

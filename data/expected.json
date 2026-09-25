@@ -1,0 +1,70 @@
+{
+  "metadata": {
+    "synthetic": true,
+    "seed": 2026,
+    "description": "Expected values are independent of input events."
+  },
+  "first-slice": {
+    "before_decision": {
+      "inspection_events": 4,
+      "pending_cards": 1,
+      "logical_defects": 1,
+      "completed_operations": 2,
+      "station_elapsed_seconds": [
+        120,
+        120
+      ]
+    },
+    "after_confirm_and_rework": {
+      "inspected_items": 1,
+      "confirmed_nonconforming_items": 1,
+      "confirmed_defects": 1,
+      "confirmed_operator_errors": 0,
+      "rework_operations": 0,
+      "disposition": "rework"
+    },
+    "after_late_event": {
+      "confirmed_defects": 1,
+      "review_required": true,
+      "cause_established": false
+    }
+  },
+  "normal": {
+    "inspected_items": 1,
+    "confirmed_defects": 0,
+    "completed_operations": 2,
+    "station_elapsed_seconds": [
+      120,
+      120
+    ]
+  },
+  "incoming-defect": {
+    "pending_cards": 1,
+    "cause_established": false,
+    "confirmed_operator_errors": 0
+  },
+  "poor-and-multiple": {
+    "effective_incoming_result": "not_assessable",
+    "new_candidates": 2,
+    "rework_operations": 1,
+    "confirmed_operator_errors": 0
+  },
+  "negative_cases": {
+    "unsupported-version": {
+      "http_status": 422,
+      "error_code": "unsupported_schema_version"
+    },
+    "missing-event-id": {
+      "http_status": 422,
+      "error_code": "validation_error"
+    },
+    "invalid-enum": {
+      "http_status": 422,
+      "error_code": "invalid_enum"
+    },
+    "conflicting-event-id": {
+      "http_status": 409,
+      "error_code": "conflict"
+    }
+  }
+}

@@ -1,0 +1,2670 @@
+{
+  "version": "0.2.0",
+  "operations": {
+    "POST /api/v1/events": [
+      "200",
+      "201",
+      "401",
+      "409",
+      "422"
+    ],
+    "GET /api/v1/work-orders": [
+      "200"
+    ],
+    "GET /api/v1/work-orders/{id}": [
+      "200",
+      "404"
+    ],
+    "GET /api/v1/items": [
+      "200"
+    ],
+    "GET /api/v1/items/{item_id}": [
+      "200",
+      "404"
+    ],
+    "GET /api/v1/items/{item_id}/timeline": [
+      "200"
+    ],
+    "POST /api/v1/items/{item_id}/dispositions": [
+      "200",
+      "201",
+      "409",
+      "422"
+    ],
+    "GET /api/v1/nonconformities": [
+      "200"
+    ],
+    "GET /api/v1/nonconformities/{id}": [
+      "200",
+      "404"
+    ],
+    "POST /api/v1/nonconformities/{id}/decisions": [
+      "200",
+      "201",
+      "409",
+      "422"
+    ],
+    "GET /api/v1/lines/{id}/status": [
+      "200"
+    ],
+    "GET /api/v1/analytics": [
+      "200"
+    ],
+    "GET /api/v1/integrations/deliveries": [
+      "200"
+    ],
+    "GET /health/live": [
+      "200"
+    ],
+    "GET /health/ready": [
+      "200",
+      "503"
+    ]
+  },
+  "schemas": {
+    "Id": {
+      "required": [],
+      "properties": {},
+      "enum": [],
+      "type": "string",
+      "allOf": [],
+      "oneOf": []
+    },
+    "IdentificationStatus": {
+      "required": [],
+      "properties": {},
+      "enum": [
+        "reliable",
+        "uncertain"
+      ],
+      "type": "string",
+      "allOf": [],
+      "oneOf": []
+    },
+    "TimeQuality": {
+      "required": [],
+      "properties": {},
+      "enum": [
+        "synchronized",
+        "uncertain"
+      ],
+      "type": "string",
+      "allOf": [],
+      "oneOf": []
+    },
+    "InspectionResult": {
+      "required": [],
+      "properties": {},
+      "enum": [
+        "defect_signs",
+        "no_defect_signs",
+        "not_assessable"
+      ],
+      "type": "string",
+      "allOf": [],
+      "oneOf": []
+    },
+    "ObservationQuality": {
+      "required": [],
+      "properties": {},
+      "enum": [
+        "good",
+        "poor",
+        "unknown"
+      ],
+      "type": "string",
+      "allOf": [],
+      "oneOf": []
+    },
+    "InspectionPhase": {
+      "required": [],
+      "properties": {},
+      "enum": [
+        "after_operation",
+        "before_operation",
+        "final",
+        "incoming"
+      ],
+      "type": "string",
+      "allOf": [],
+      "oneOf": []
+    },
+    "NonconformityStatus": {
+      "required": [],
+      "properties": {},
+      "enum": [
+        "confirmed",
+        "needs_check",
+        "pending_review",
+        "rejected"
+      ],
+      "type": "string",
+      "allOf": [],
+      "oneOf": []
+    },
+    "CauseStatus": {
+      "required": [],
+      "properties": {},
+      "enum": [
+        "established",
+        "hypothesis",
+        "unresolved"
+      ],
+      "type": "string",
+      "allOf": [],
+      "oneOf": []
+    },
+    "CauseCategory": {
+      "required": [],
+      "properties": {},
+      "enum": [
+        "equipment",
+        "incoming",
+        "operator",
+        "other",
+        "unknown"
+      ],
+      "type": "string",
+      "allOf": [],
+      "oneOf": []
+    },
+    "DispositionStatus": {
+      "required": [],
+      "properties": {},
+      "enum": [
+        "pending",
+        "rejected",
+        "released",
+        "rework"
+      ],
+      "type": "string",
+      "allOf": [],
+      "oneOf": []
+    },
+    "ProjectionStatus": {
+      "required": [],
+      "properties": {},
+      "enum": [
+        "applied",
+        "unresolved"
+      ],
+      "type": "string",
+      "allOf": [],
+      "oneOf": []
+    },
+    "DefectSign": {
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "component_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "defect_ref": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "description": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "region_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "type": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "ReportedDuration": {
+      "required": [
+        "kind",
+        "unit",
+        "value"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [
+            "active_processing",
+            "station_elapsed"
+          ],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "unit": {
+          "type": "string",
+          "ref": null,
+          "const": "s",
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "value": {
+          "type": "number",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": 0,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "SourceEvent": {
+      "required": [],
+      "properties": {},
+      "enum": [],
+      "type": null,
+      "allOf": [],
+      "oneOf": [
+        "#/components/schemas/ItemReceivedEvent",
+        "#/components/schemas/OperationStartedEvent",
+        "#/components/schemas/OperationFinishedEvent",
+        "#/components/schemas/OperatorActionEvent",
+        "#/components/schemas/MachineStateEvent",
+        "#/components/schemas/InspectionObservedEvent"
+      ]
+    },
+    "SourceEventBase": {
+      "required": [
+        "event_id",
+        "event_type",
+        "item_id",
+        "occurred_at",
+        "schema_version",
+        "source_id"
+      ],
+      "properties": {
+        "equipment_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "event_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "event_type": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [
+            "item_received",
+            "operation_started",
+            "operation_finished",
+            "operator_action",
+            "machine_state",
+            "inspection_observed"
+          ],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "identification_status": {
+          "type": null,
+          "ref": "#/components/schemas/IdentificationStatus",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "item_id": {
+          "type": null,
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "item_type_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "line_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "occurred_at": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": "date-time",
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "operation_run_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "operator_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "schema_version": {
+          "type": "string",
+          "ref": null,
+          "const": "1.0",
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "source_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "station_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "time_quality": {
+          "type": null,
+          "ref": "#/components/schemas/TimeQuality",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "ItemReceivedEvent": {
+      "required": [],
+      "properties": {},
+      "enum": [],
+      "type": null,
+      "allOf": [
+        "#/components/schemas/SourceEventBase",
+        "{\"type\":\"object\",\"required\":[\"item_type_id\",\"payload\"],\"properties\":{\"event_type\":{\"type\":\"string\",\"const\":\"item_received\"},\"item_id\":{\"$ref\":\"#/components/schemas/Id\"},\"payload\":{\"$ref\":\"#/components/schemas/ItemReceivedPayload\"}}}"
+      ],
+      "oneOf": []
+    },
+    "OperationStartedEvent": {
+      "required": [],
+      "properties": {},
+      "enum": [],
+      "type": null,
+      "allOf": [
+        "#/components/schemas/SourceEventBase",
+        "{\"type\":\"object\",\"required\":[\"station_id\",\"operation_run_id\",\"payload\"],\"properties\":{\"event_type\":{\"type\":\"string\",\"const\":\"operation_started\"},\"payload\":{\"$ref\":\"#/components/schemas/OperationPayload\"}}}"
+      ],
+      "oneOf": []
+    },
+    "OperationFinishedEvent": {
+      "required": [],
+      "properties": {},
+      "enum": [],
+      "type": null,
+      "allOf": [
+        "#/components/schemas/SourceEventBase",
+        "{\"type\":\"object\",\"required\":[\"station_id\",\"operation_run_id\",\"payload\"],\"properties\":{\"event_type\":{\"type\":\"string\",\"const\":\"operation_finished\"},\"payload\":{\"$ref\":\"#/components/schemas/OperationPayload\"}}}"
+      ],
+      "oneOf": []
+    },
+    "OperatorActionEvent": {
+      "required": [],
+      "properties": {},
+      "enum": [],
+      "type": null,
+      "allOf": [
+        "#/components/schemas/SourceEventBase",
+        "{\"type\":\"object\",\"required\":[\"station_id\",\"payload\"],\"properties\":{\"event_type\":{\"type\":\"string\",\"const\":\"operator_action\"},\"payload\":{\"$ref\":\"#/components/schemas/OperatorActionPayload\"}}}"
+      ],
+      "oneOf": []
+    },
+    "MachineStateEvent": {
+      "required": [],
+      "properties": {},
+      "enum": [],
+      "type": null,
+      "allOf": [
+        "#/components/schemas/SourceEventBase",
+        "{\"type\":\"object\",\"required\":[\"equipment_id\",\"station_id\",\"payload\"],\"properties\":{\"event_type\":{\"type\":\"string\",\"const\":\"machine_state\"},\"payload\":{\"$ref\":\"#/components/schemas/MachineStatePayload\"}}}"
+      ],
+      "oneOf": []
+    },
+    "InspectionObservedEvent": {
+      "required": [],
+      "properties": {},
+      "enum": [],
+      "type": null,
+      "allOf": [
+        "#/components/schemas/SourceEventBase",
+        "{\"type\":\"object\",\"required\":[\"station_id\",\"payload\"],\"properties\":{\"event_type\":{\"type\":\"string\",\"const\":\"inspection_observed\"},\"payload\":{\"$ref\":\"#/components/schemas/InspectionPayload\"}}}"
+      ],
+      "oneOf": []
+    },
+    "ItemReceivedPayload": {
+      "required": [
+        "component_ids",
+        "work_order_id"
+      ],
+      "properties": {
+        "assembly_version": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "component_ids": {
+          "type": "array",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "work_order_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "OperationPayload": {
+      "required": [
+        "operation_type_id",
+        "shift_id"
+      ],
+      "properties": {
+        "operation_type_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "previous_operation_run_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "reported_duration": {
+          "type": null,
+          "ref": "#/components/schemas/ReportedDuration",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "shift_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "OperatorActionPayload": {
+      "required": [
+        "action_type"
+      ],
+      "properties": {
+        "action_type": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "details": {
+          "type": "object",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "MachineStatePayload": {
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "description": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "parameters": {
+          "type": "object",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "state": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [
+            "normal",
+            "warning",
+            "stopped"
+          ],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "InspectionPayload": {
+      "required": [
+        "checkpoint_id",
+        "defects",
+        "inspection_phase",
+        "inspection_result",
+        "observation_quality"
+      ],
+      "properties": {
+        "analyzer_version": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "checkpoint_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "confidence": {
+          "type": null,
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "defects": {
+          "type": "array",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "evidence_refs": {
+          "type": "array",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "inspection_phase": {
+          "type": null,
+          "ref": "#/components/schemas/InspectionPhase",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "inspection_result": {
+          "type": null,
+          "ref": "#/components/schemas/InspectionResult",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "observation_quality": {
+          "type": null,
+          "ref": "#/components/schemas/ObservationQuality",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "EventReceipt": {
+      "required": [
+        "event_id",
+        "issues",
+        "projection_status",
+        "received_at",
+        "source_id",
+        "status"
+      ],
+      "properties": {
+        "event_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "issues": {
+          "type": "array",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "projection_status": {
+          "type": null,
+          "ref": "#/components/schemas/ProjectionStatus",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "received_at": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": "date-time",
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "source_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "status": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [
+            "accepted",
+            "duplicate"
+          ],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "ApiError": {
+      "required": [
+        "error",
+        "request_id"
+      ],
+      "properties": {
+        "error": {
+          "type": "object",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "request_id": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "WorkOrder": {
+      "required": [
+        "checkpoints",
+        "external_order_id",
+        "external_system",
+        "id",
+        "import_status",
+        "item_ids",
+        "revision",
+        "route_version"
+      ],
+      "properties": {
+        "checkpoints": {
+          "type": "array",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "external_order_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "external_system": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "import_status": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [
+            "imported",
+            "unresolved",
+            "rejected"
+          ],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "item_ids": {
+          "type": "array",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "revision": {
+          "type": "integer",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": 1,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "route_version": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "WorkOrderPage": {
+      "required": [
+        "items",
+        "next_cursor"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "Component": {
+      "required": [
+        "id",
+        "item_type_id"
+      ],
+      "properties": {
+        "children": {
+          "type": "array",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "item_type_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "quantity": {
+          "type": "integer",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": 1,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "Item": {
+      "required": [
+        "assembly_version",
+        "components",
+        "disposition",
+        "id",
+        "item_type_id",
+        "review_required",
+        "revision",
+        "work_order_id"
+      ],
+      "properties": {
+        "assembly_version": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "components": {
+          "type": "array",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "disposition": {
+          "type": null,
+          "ref": "#/components/schemas/DispositionStatus",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "item_type_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "review_required": {
+          "type": "boolean",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "revision": {
+          "type": "integer",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": 0,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "work_order_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "ItemPage": {
+      "required": [
+        "items",
+        "next_cursor"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "TimelineEntry": {
+      "required": [
+        "id",
+        "kind",
+        "occurred_at",
+        "projection_status",
+        "received_at",
+        "summary"
+      ],
+      "properties": {
+        "duration": {
+          "type": null,
+          "ref": "#/components/schemas/DurationMeasurement",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "kind": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "occurred_at": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": "date-time",
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "projection_status": {
+          "type": null,
+          "ref": "#/components/schemas/ProjectionStatus",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "received_at": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": "date-time",
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "source_event": {
+          "type": null,
+          "ref": "#/components/schemas/SourceEvent",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "summary": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "TimelinePage": {
+      "required": [
+        "items",
+        "next_cursor"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "DurationMeasurement": {
+      "required": [
+        "kind",
+        "origin",
+        "unit",
+        "value"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [
+            "active_processing",
+            "station_elapsed"
+          ],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "origin": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [
+            "reported",
+            "calculated"
+          ],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "unavailable_reason": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "unit": {
+          "type": "string",
+          "ref": null,
+          "const": "s",
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "value": {
+          "type": null,
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "Observation": {
+      "required": [
+        "defects",
+        "effective_result",
+        "event_id",
+        "evidence_refs",
+        "id",
+        "observation_quality",
+        "occurred_at",
+        "original_result"
+      ],
+      "properties": {
+        "defects": {
+          "type": "array",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "effective_result": {
+          "type": null,
+          "ref": "#/components/schemas/InspectionResult",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "event_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "evidence_refs": {
+          "type": "array",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "observation_quality": {
+          "type": null,
+          "ref": "#/components/schemas/ObservationQuality",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "occurred_at": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": "date-time",
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "original_result": {
+          "type": null,
+          "ref": "#/components/schemas/InspectionResult",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "CauseAssessment": {
+      "required": [
+        "category",
+        "evidence_event_ids",
+        "limitations",
+        "status"
+      ],
+      "properties": {
+        "category": {
+          "type": null,
+          "ref": "#/components/schemas/CauseCategory",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "evidence_event_ids": {
+          "type": "array",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "limitations": {
+          "type": "array",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "status": {
+          "type": null,
+          "ref": "#/components/schemas/CauseStatus",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "ControllerDecision": {
+      "required": [
+        "author_id",
+        "decided_at",
+        "decision",
+        "id",
+        "reason",
+        "revision"
+      ],
+      "properties": {
+        "author_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "cause": {
+          "type": null,
+          "ref": "#/components/schemas/CauseAssessment",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "decided_at": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": "date-time",
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "decision": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [
+            "confirm",
+            "reject",
+            "request_check"
+          ],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "reason": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": 1,
+          "maxLength": null
+        },
+        "revision": {
+          "type": "integer",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": 1,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "DecisionCommand": {
+      "required": [
+        "decision",
+        "expected_revision",
+        "idempotency_key",
+        "reason"
+      ],
+      "properties": {
+        "action_event_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "cause_category": {
+          "type": null,
+          "ref": "#/components/schemas/CauseCategory",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "cause_status": {
+          "type": null,
+          "ref": "#/components/schemas/CauseStatus",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "decision": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [
+            "confirm",
+            "reject",
+            "request_check"
+          ],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "evidence_event_ids": {
+          "type": "array",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "expected_revision": {
+          "type": "integer",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": 0,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "idempotency_key": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "operation_run_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "operator_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "reason": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": 1,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "Nonconformity": {
+      "required": [
+        "cause",
+        "decisions",
+        "id",
+        "item_id",
+        "observations",
+        "review_required",
+        "revision",
+        "status"
+      ],
+      "properties": {
+        "cause": {
+          "type": null,
+          "ref": "#/components/schemas/CauseAssessment",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "decisions": {
+          "type": "array",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "item_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "observations": {
+          "type": "array",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "review_required": {
+          "type": "boolean",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "revision": {
+          "type": "integer",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": 0,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "status": {
+          "type": null,
+          "ref": "#/components/schemas/NonconformityStatus",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "NonconformityPage": {
+      "required": [
+        "items",
+        "next_cursor"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "DispositionCommand": {
+      "required": [
+        "disposition",
+        "expected_revision",
+        "idempotency_key",
+        "reason"
+      ],
+      "properties": {
+        "disposition": {
+          "type": null,
+          "ref": "#/components/schemas/DispositionStatus",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "expected_revision": {
+          "type": "integer",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": 0,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "idempotency_key": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "reason": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": 1,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "DispositionDecision": {
+      "required": [
+        "author_id",
+        "decided_at",
+        "disposition",
+        "id",
+        "item_id",
+        "reason",
+        "revision"
+      ],
+      "properties": {
+        "author_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "decided_at": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": "date-time",
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "disposition": {
+          "type": null,
+          "ref": "#/components/schemas/DispositionStatus",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "item_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "reason": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "revision": {
+          "type": "integer",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": 1,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "LineStatus": {
+      "required": [
+        "active_operations",
+        "computed_at",
+        "line_id",
+        "station_states"
+      ],
+      "properties": {
+        "active_operations": {
+          "type": "array",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "computed_at": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": "date-time",
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "line_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "station_states": {
+          "type": "object",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "Analytics": {
+      "required": [
+        "computed_at",
+        "confirmed_defects",
+        "confirmed_nonconforming_items",
+        "confirmed_operator_errors",
+        "durations",
+        "filters",
+        "inspected_items",
+        "pending_candidates",
+        "revision",
+        "rework_operations"
+      ],
+      "properties": {
+        "computed_at": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": "date-time",
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "confirmed_defects": {
+          "type": "integer",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": 0,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "confirmed_nonconforming_items": {
+          "type": "integer",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": 0,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "confirmed_operator_errors": {
+          "type": "integer",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": 0,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "durations": {
+          "type": "array",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "filters": {
+          "type": "object",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "inspected_items": {
+          "type": "integer",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": 0,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "pending_candidates": {
+          "type": "integer",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": 0,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "revision": {
+          "type": "integer",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": 0,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "rework_operations": {
+          "type": "integer",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": 0,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "DurationAggregate": {
+      "required": [
+        "completed_count",
+        "group",
+        "incomplete_count",
+        "invalid_count",
+        "kind",
+        "origin",
+        "unit"
+      ],
+      "properties": {
+        "completed_count": {
+          "type": "integer",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": 0,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "group": {
+          "type": "object",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "incomplete_count": {
+          "type": "integer",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": 0,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "invalid_count": {
+          "type": "integer",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": 0,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "kind": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [
+            "active_processing",
+            "station_elapsed"
+          ],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "mean": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": 0,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "origin": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [
+            "reported",
+            "calculated"
+          ],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "unit": {
+          "type": "string",
+          "ref": null,
+          "const": "s",
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "Delivery": {
+      "required": [
+        "attempts",
+        "external_order_id",
+        "item_id",
+        "message_id",
+        "result_version",
+        "status"
+      ],
+      "properties": {
+        "acknowledged_at": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": "date-time",
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "attempts": {
+          "type": "integer",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": 0,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "external_order_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "item_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "last_error": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "message_id": {
+          "type": null,
+          "ref": "#/components/schemas/Id",
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "result_version": {
+          "type": "integer",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": 1,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "status": {
+          "type": "string",
+          "ref": null,
+          "const": null,
+          "enum": [
+            "pending",
+            "retrying",
+            "acknowledged",
+            "failed"
+          ],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    },
+    "DeliveryPage": {
+      "required": [
+        "items",
+        "next_cursor"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "ref": null,
+          "const": null,
+          "enum": [],
+          "format": null,
+          "minimum": null,
+          "maximum": null,
+          "minLength": null,
+          "maxLength": null
+        }
+      },
+      "enum": [],
+      "type": "object",
+      "allOf": [],
+      "oneOf": []
+    }
+  }
+}

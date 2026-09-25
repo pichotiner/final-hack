@@ -1,0 +1,30 @@
+{
+  "name": "final-hack-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "generate:types": "openapi-typescript ../contracts/openapi.yaml -o src/generated/api.ts",
+    "check:types": "npm run generate:types && git diff --exit-code -- src/generated/api.ts",
+    "check:compat": "node scripts/check-contract.mjs",
+    "test:compat": "node scripts/check-contract.mjs --self-test"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "5.89.0",
+    "react": "19.1.1",
+    "react-dom": "19.1.1"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.13",
+    "@types/react-dom": "19.1.9",
+    "@vitejs/plugin-react": "4.7.0",
+    "openapi-typescript": "7.9.1",
+    "prettier": "3.6.2",
+    "typescript": "5.9.2",
+    "vite": "6.3.5",
+    "yaml": "2.8.1"
+  }
+}

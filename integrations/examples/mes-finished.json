@@ -1,0 +1,12 @@
+{
+  "messageId": "mes-msg-001",
+  "unitId": "MES-assembly-001",
+  "finishedAt": "2026-09-25T10:05:00Z",
+  "stationId": "station-machining",
+  "runId": "run-machining-001",
+  "operatorId": "operator-01",
+  "equipmentId": "machine-01",
+  "timeQuality": "synchronized",
+  "operationCode": "machining",
+  "shiftId": "shift-1"
+}

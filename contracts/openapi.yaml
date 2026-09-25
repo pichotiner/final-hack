@@ -1,0 +1,533 @@
+openapi: 3.1.0
+info:
+  title: Final Hack quality API
+  version: 0.2.0
+  description: Transport contract for the synthetic MVP. Production semantics are in docs/contracts.md.
+servers:
+  - url: http://localhost:8000
+security:
+  - bearerAuth: []
+tags:
+  - name: events
+  - name: work-orders
+  - name: items
+  - name: quality
+  - name: analytics
+  - name: integrations
+paths:
+  /api/v1/events:
+    post:
+      tags: [events]
+      operationId: ingestEvent
+      summary: Accept one immutable source event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SourceEvent' }
+      responses:
+        '201': { description: Accepted, content: { application/json: { schema: { $ref: '#/components/schemas/EventReceipt' } } } }
+        '200': { description: Duplicate with original receipt, content: { application/json: { schema: { $ref: '#/components/schemas/EventReceipt' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Invalid' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/work-orders:
+    get:
+      tags: [work-orders]
+      operationId: listWorkOrders
+      parameters: [ { $ref: '#/components/parameters/Cursor' }, { $ref: '#/components/parameters/Limit' } ]
+      responses:
+        '200': { description: Work orders, content: { application/json: { schema: { $ref: '#/components/schemas/WorkOrderPage' } } } }
+  /api/v1/work-orders/{id}:
+    get:
+      tags: [work-orders]
+      operationId: getWorkOrder
+      parameters: [ { name: id, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } } ]
+      responses:
+        '200': { description: Work order, content: { application/json: { schema: { $ref: '#/components/schemas/WorkOrder' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/items:
+    get:
+      tags: [items]
+      operationId: listItems
+      parameters:
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { name: line_id, in: query, schema: { $ref: '#/components/schemas/Id' } }
+        - { name: station_id, in: query, schema: { $ref: '#/components/schemas/Id' } }
+        - { name: disposition, in: query, schema: { $ref: '#/components/schemas/DispositionStatus' } }
+      responses:
+        '200': { description: Items, content: { application/json: { schema: { $ref: '#/components/schemas/ItemPage' } } } }
+  /api/v1/items/{item_id}:
+    get:
+      tags: [items]
+      operationId: getItem
+      parameters: [ { $ref: '#/components/parameters/ItemId' } ]
+      responses:
+        '200': { description: Item passport, content: { application/json: { schema: { $ref: '#/components/schemas/Item' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/items/{item_id}/timeline:
+    get:
+      tags: [items]
+      operationId: getItemTimeline
+      parameters: [ { $ref: '#/components/parameters/ItemId' }, { $ref: '#/components/parameters/Cursor' }, { $ref: '#/components/parameters/Limit' } ]
+      responses:
+        '200': { description: Chronology, content: { application/json: { schema: { $ref: '#/components/schemas/TimelinePage' } } } }
+  /api/v1/items/{item_id}/dispositions:
+    post:
+      tags: [items]
+      operationId: decideDisposition
+      parameters: [ { $ref: '#/components/parameters/ItemId' } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/DispositionCommand' } } } }
+      responses:
+        '201': { description: Decision recorded, content: { application/json: { schema: { $ref: '#/components/schemas/DispositionDecision' } } } }
+        '200': { description: Idempotent replay, content: { application/json: { schema: { $ref: '#/components/schemas/DispositionDecision' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Invalid' }
+  /api/v1/nonconformities:
+    get:
+      tags: [quality]
+      operationId: listNonconformities
+      parameters:
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/NonconformityStatus' } }
+      responses:
+        '200': { description: Review queue, content: { application/json: { schema: { $ref: '#/components/schemas/NonconformityPage' } } } }
+  /api/v1/nonconformities/{id}:
+    get:
+      tags: [quality]
+      operationId: getNonconformity
+      parameters: [ { $ref: '#/components/parameters/NonconformityId' } ]
+      responses:
+        '200': { description: Quality card, content: { application/json: { schema: { $ref: '#/components/schemas/Nonconformity' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/nonconformities/{id}/decisions:
+    post:
+      tags: [quality]
+      operationId: decideNonconformity
+      parameters: [ { $ref: '#/components/parameters/NonconformityId' } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/DecisionCommand' } } } }
+      responses:
+        '201': { description: Decision recorded, content: { application/json: { schema: { $ref: '#/components/schemas/ControllerDecision' } } } }
+        '200': { description: Idempotent replay, content: { application/json: { schema: { $ref: '#/components/schemas/ControllerDecision' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Invalid' }
+  /api/v1/lines/{id}/status:
+    get:
+      tags: [items]
+      operationId: getLineStatus
+      parameters: [ { name: id, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } } ]
+      responses:
+        '200': { description: Line snapshot, content: { application/json: { schema: { $ref: '#/components/schemas/LineStatus' } } } }
+  /api/v1/analytics:
+    get:
+      tags: [analytics]
+      operationId: getAnalytics
+      parameters:
+        - { name: line_id, in: query, schema: { $ref: '#/components/schemas/Id' } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses:
+        '200': { description: Server computed KPIs, content: { application/json: { schema: { $ref: '#/components/schemas/Analytics' } } } }
+  /api/v1/integrations/deliveries:
+    get:
+      tags: [integrations]
+      operationId: listDeliveries
+      parameters: [ { $ref: '#/components/parameters/Cursor' }, { $ref: '#/components/parameters/Limit' } ]
+      responses:
+        '200': { description: Delivery state, content: { application/json: { schema: { $ref: '#/components/schemas/DeliveryPage' } } } }
+  /health/live:
+    get:
+      security: []
+      operationId: live
+      responses: { '200': { description: Process alive } }
+  /health/ready:
+    get:
+      security: []
+      operationId: ready
+      responses: { '200': { description: Dependencies ready }, '503': { description: Dependency unavailable } }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }
+  parameters:
+    Cursor: { name: cursor, in: query, schema: { type: string } }
+    Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+    ItemId: { name: item_id, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }
+    NonconformityId: { name: id, in: path, required: true, schema: { $ref: '#/components/schemas/Id' } }
+  responses:
+    Conflict: { description: ID or revision conflict, content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } } }
+    Invalid: { description: Validation failure, content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } } }
+    NotFound: { description: Unknown resource, content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } } }
+    Unauthorized: { description: Authentication required, content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } } }
+  schemas:
+    Id: { type: string, minLength: 1, maxLength: 128 }
+    IdentificationStatus: { type: string, enum: [reliable, uncertain] }
+    TimeQuality: { type: string, enum: [synchronized, uncertain] }
+    InspectionResult: { type: string, enum: [defect_signs, no_defect_signs, not_assessable] }
+    ObservationQuality: { type: string, enum: [good, poor, unknown] }
+    InspectionPhase: { type: string, enum: [incoming, before_operation, after_operation, final] }
+    NonconformityStatus: { type: string, enum: [pending_review, confirmed, rejected, needs_check] }
+    CauseStatus: { type: string, enum: [unresolved, hypothesis, established] }
+    CauseCategory: { type: string, enum: [incoming, equipment, operator, other, unknown] }
+    DispositionStatus: { type: string, enum: [pending, released, rework, rejected] }
+    ProjectionStatus: { type: string, enum: [applied, unresolved] }
+    DefectSign:
+      type: object
+      required: [type]
+      properties:
+        defect_ref: { $ref: '#/components/schemas/Id' }
+        type: { $ref: '#/components/schemas/Id' }
+        description: { type: string }
+        component_id: { $ref: '#/components/schemas/Id' }
+        region_id: { $ref: '#/components/schemas/Id' }
+    ReportedDuration:
+      type: object
+      required: [value, unit, kind]
+      properties:
+        value: { type: number, minimum: 0 }
+        unit: { type: string, const: s }
+        kind: { type: string, enum: [active_processing, station_elapsed] }
+    SourceEvent:
+      oneOf:
+        - { $ref: '#/components/schemas/ItemReceivedEvent' }
+        - { $ref: '#/components/schemas/OperationStartedEvent' }
+        - { $ref: '#/components/schemas/OperationFinishedEvent' }
+        - { $ref: '#/components/schemas/OperatorActionEvent' }
+        - { $ref: '#/components/schemas/MachineStateEvent' }
+        - { $ref: '#/components/schemas/InspectionObservedEvent' }
+    SourceEventBase:
+      type: object
+      required: [event_id, event_type, schema_version, occurred_at, source_id, item_id]
+      additionalProperties: true
+      properties:
+        event_id: { $ref: '#/components/schemas/Id' }
+        event_type: { type: string, enum: [item_received, operation_started, operation_finished, operator_action, machine_state, inspection_observed] }
+        schema_version: { type: string, const: '1.0' }
+        occurred_at: { type: string, format: date-time }
+        source_id: { $ref: '#/components/schemas/Id' }
+        item_id: { anyOf: [ { $ref: '#/components/schemas/Id' }, { type: 'null' } ] }
+        item_type_id: { $ref: '#/components/schemas/Id' }
+        line_id: { $ref: '#/components/schemas/Id' }
+        station_id: { $ref: '#/components/schemas/Id' }
+        operation_run_id: { $ref: '#/components/schemas/Id' }
+        operator_id: { $ref: '#/components/schemas/Id' }
+        equipment_id: { $ref: '#/components/schemas/Id' }
+        identification_status: { $ref: '#/components/schemas/IdentificationStatus', default: uncertain }
+        time_quality: { $ref: '#/components/schemas/TimeQuality', default: uncertain }
+    ItemReceivedEvent:
+      allOf:
+        - { $ref: '#/components/schemas/SourceEventBase' }
+        - type: object
+          required: [item_type_id, payload]
+          properties:
+            event_type: { type: string, const: item_received }
+            item_id: { $ref: '#/components/schemas/Id' }
+            payload: { $ref: '#/components/schemas/ItemReceivedPayload' }
+    OperationStartedEvent:
+      allOf:
+        - { $ref: '#/components/schemas/SourceEventBase' }
+        - type: object
+          required: [station_id, operation_run_id, payload]
+          properties:
+            event_type: { type: string, const: operation_started }
+            payload: { $ref: '#/components/schemas/OperationPayload' }
+    OperationFinishedEvent:
+      allOf:
+        - { $ref: '#/components/schemas/SourceEventBase' }
+        - type: object
+          required: [station_id, operation_run_id, payload]
+          properties:
+            event_type: { type: string, const: operation_finished }
+            payload: { $ref: '#/components/schemas/OperationPayload' }
+    OperatorActionEvent:
+      allOf:
+        - { $ref: '#/components/schemas/SourceEventBase' }
+        - type: object
+          required: [station_id, payload]
+          properties:
+            event_type: { type: string, const: operator_action }
+            payload: { $ref: '#/components/schemas/OperatorActionPayload' }
+    MachineStateEvent:
+      allOf:
+        - { $ref: '#/components/schemas/SourceEventBase' }
+        - type: object
+          required: [equipment_id, station_id, payload]
+          properties:
+            event_type: { type: string, const: machine_state }
+            payload: { $ref: '#/components/schemas/MachineStatePayload' }
+    InspectionObservedEvent:
+      allOf:
+        - { $ref: '#/components/schemas/SourceEventBase' }
+        - type: object
+          required: [station_id, payload]
+          properties:
+            event_type: { type: string, const: inspection_observed }
+            payload: { $ref: '#/components/schemas/InspectionPayload' }
+    ItemReceivedPayload:
+      type: object
+      required: [work_order_id, component_ids]
+      properties:
+        work_order_id: { $ref: '#/components/schemas/Id' }
+        component_ids: { type: array, items: { $ref: '#/components/schemas/Id' } }
+        assembly_version: { $ref: '#/components/schemas/Id' }
+    OperationPayload:
+      type: object
+      required: [operation_type_id, shift_id]
+      properties:
+        operation_type_id: { $ref: '#/components/schemas/Id' }
+        shift_id: { $ref: '#/components/schemas/Id' }
+        previous_operation_run_id: { $ref: '#/components/schemas/Id' }
+        reported_duration: { $ref: '#/components/schemas/ReportedDuration' }
+    OperatorActionPayload:
+      type: object
+      required: [action_type]
+      properties:
+        action_type: { $ref: '#/components/schemas/Id' }
+        details: { type: object, additionalProperties: true }
+    MachineStatePayload:
+      type: object
+      required: [state]
+      properties:
+        state: { type: string, enum: [normal, warning, stopped] }
+        parameters: { type: object, additionalProperties: true }
+        description: { type: string }
+    InspectionPayload:
+      type: object
+      required: [inspection_result, checkpoint_id, inspection_phase, observation_quality, defects]
+      properties:
+        inspection_result: { $ref: '#/components/schemas/InspectionResult' }
+        checkpoint_id: { $ref: '#/components/schemas/Id' }
+        inspection_phase: { $ref: '#/components/schemas/InspectionPhase' }
+        observation_quality: { $ref: '#/components/schemas/ObservationQuality' }
+        confidence: { anyOf: [ { type: number, minimum: 0, maximum: 1 }, { type: 'null' } ] }
+        defects: { type: array, items: { $ref: '#/components/schemas/DefectSign' } }
+        evidence_refs: { type: array, items: { type: string }, default: [] }
+        analyzer_version: { type: string }
+    EventReceipt:
+      type: object
+      required: [event_id, source_id, status, received_at, projection_status, issues]
+      properties:
+        event_id: { $ref: '#/components/schemas/Id' }
+        source_id: { $ref: '#/components/schemas/Id' }
+        status: { type: string, enum: [accepted, duplicate] }
+        received_at: { type: string, format: date-time }
+        projection_status: { $ref: '#/components/schemas/ProjectionStatus' }
+        issues: { type: array, items: { type: string } }
+    ApiError:
+      type: object
+      required: [error, request_id]
+      properties:
+        error:
+          type: object
+          required: [code, message, details]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details: { type: array, items: { type: object, additionalProperties: true } }
+        request_id: { type: string }
+    WorkOrder:
+      type: object
+      required: [id, external_system, external_order_id, revision, route_version, checkpoints, item_ids, import_status]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        external_system: { type: string }
+        external_order_id: { $ref: '#/components/schemas/Id' }
+        revision: { type: integer, minimum: 1 }
+        route_version: { $ref: '#/components/schemas/Id' }
+        checkpoints: { type: array, items: { $ref: '#/components/schemas/Id' } }
+        item_ids: { type: array, items: { $ref: '#/components/schemas/Id' } }
+        import_status: { type: string, enum: [imported, unresolved, rejected] }
+    WorkOrderPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/WorkOrder' } }
+        next_cursor: { type: [string, 'null'] }
+    Component:
+      type: object
+      required: [id, item_type_id]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        item_type_id: { $ref: '#/components/schemas/Id' }
+        quantity: { type: integer, minimum: 1, default: 1 }
+        children: { type: array, items: { $ref: '#/components/schemas/Component' } }
+    Item:
+      type: object
+      required: [id, item_type_id, work_order_id, assembly_version, components, disposition, revision, review_required]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        item_type_id: { $ref: '#/components/schemas/Id' }
+        work_order_id: { $ref: '#/components/schemas/Id' }
+        assembly_version: { type: [string, 'null'] }
+        components: { type: array, items: { $ref: '#/components/schemas/Component' } }
+        disposition: { $ref: '#/components/schemas/DispositionStatus' }
+        revision: { type: integer, minimum: 0 }
+        review_required: { type: boolean }
+    ItemPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Item' } }
+        next_cursor: { type: [string, 'null'] }
+    TimelineEntry:
+      type: object
+      required: [id, kind, occurred_at, received_at, projection_status, summary]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        kind: { type: string }
+        occurred_at: { type: string, format: date-time }
+        received_at: { type: string, format: date-time }
+        projection_status: { $ref: '#/components/schemas/ProjectionStatus' }
+        summary: { type: string }
+        source_event: { $ref: '#/components/schemas/SourceEvent' }
+        duration: { $ref: '#/components/schemas/DurationMeasurement' }
+    TimelinePage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/TimelineEntry' } }
+        next_cursor: { type: [string, 'null'] }
+    DurationMeasurement:
+      type: object
+      required: [value, unit, kind, origin]
+      properties:
+        value: { anyOf: [ { type: number, minimum: 0 }, { type: 'null' } ] }
+        unit: { type: string, const: s }
+        kind: { type: string, enum: [active_processing, station_elapsed] }
+        origin: { type: string, enum: [reported, calculated] }
+        unavailable_reason: { type: string }
+    Observation:
+      type: object
+      required: [id, event_id, occurred_at, original_result, effective_result, observation_quality, defects, evidence_refs]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        event_id: { $ref: '#/components/schemas/Id' }
+        occurred_at: { type: string, format: date-time }
+        original_result: { $ref: '#/components/schemas/InspectionResult' }
+        effective_result: { $ref: '#/components/schemas/InspectionResult' }
+        observation_quality: { $ref: '#/components/schemas/ObservationQuality' }
+        defects: { type: array, items: { $ref: '#/components/schemas/DefectSign' } }
+        evidence_refs: { type: array, items: { type: string } }
+    CauseAssessment:
+      type: object
+      required: [status, category, evidence_event_ids, limitations]
+      properties:
+        status: { $ref: '#/components/schemas/CauseStatus' }
+        category: { $ref: '#/components/schemas/CauseCategory' }
+        evidence_event_ids: { type: array, items: { $ref: '#/components/schemas/Id' } }
+        limitations: { type: array, items: { type: string } }
+    ControllerDecision:
+      type: object
+      required: [id, decision, reason, author_id, decided_at, revision]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        decision: { type: string, enum: [confirm, reject, request_check] }
+        reason: { type: string, minLength: 1 }
+        author_id: { $ref: '#/components/schemas/Id' }
+        decided_at: { type: string, format: date-time }
+        revision: { type: integer, minimum: 1 }
+        cause: { $ref: '#/components/schemas/CauseAssessment' }
+    DecisionCommand:
+      type: object
+      required: [decision, reason, expected_revision, idempotency_key]
+      properties:
+        decision: { type: string, enum: [confirm, reject, request_check] }
+        reason: { type: string, minLength: 1 }
+        expected_revision: { type: integer, minimum: 0 }
+        idempotency_key: { $ref: '#/components/schemas/Id' }
+        cause_status: { $ref: '#/components/schemas/CauseStatus' }
+        cause_category: { $ref: '#/components/schemas/CauseCategory' }
+        evidence_event_ids: { type: array, items: { $ref: '#/components/schemas/Id' } }
+        operation_run_id: { $ref: '#/components/schemas/Id' }
+        operator_id: { $ref: '#/components/schemas/Id' }
+        action_event_id: { $ref: '#/components/schemas/Id' }
+    Nonconformity:
+      type: object
+      required: [id, item_id, status, revision, review_required, observations, cause, decisions]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        item_id: { $ref: '#/components/schemas/Id' }
+        status: { $ref: '#/components/schemas/NonconformityStatus' }
+        revision: { type: integer, minimum: 0 }
+        review_required: { type: boolean }
+        observations: { type: array, items: { $ref: '#/components/schemas/Observation' } }
+        cause: { $ref: '#/components/schemas/CauseAssessment' }
+        decisions: { type: array, items: { $ref: '#/components/schemas/ControllerDecision' } }
+    NonconformityPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Nonconformity' } }
+        next_cursor: { type: [string, 'null'] }
+    DispositionCommand:
+      type: object
+      required: [disposition, reason, expected_revision, idempotency_key]
+      properties:
+        disposition: { $ref: '#/components/schemas/DispositionStatus' }
+        reason: { type: string, minLength: 1 }
+        expected_revision: { type: integer, minimum: 0 }
+        idempotency_key: { $ref: '#/components/schemas/Id' }
+    DispositionDecision:
+      type: object
+      required: [id, item_id, disposition, reason, author_id, decided_at, revision]
+      properties:
+        id: { $ref: '#/components/schemas/Id' }
+        item_id: { $ref: '#/components/schemas/Id' }
+        disposition: { $ref: '#/components/schemas/DispositionStatus' }
+        reason: { type: string }
+        author_id: { $ref: '#/components/schemas/Id' }
+        decided_at: { type: string, format: date-time }
+        revision: { type: integer, minimum: 1 }
+    LineStatus:
+      type: object
+      required: [line_id, computed_at, active_operations, station_states]
+      properties:
+        line_id: { $ref: '#/components/schemas/Id' }
+        computed_at: { type: string, format: date-time }
+        active_operations: { type: array, items: { $ref: '#/components/schemas/Id' } }
+        station_states: { type: object, additionalProperties: { type: string, enum: [normal, warning, stopped, unknown] } }
+    Analytics:
+      type: object
+      required: [computed_at, revision, filters, inspected_items, confirmed_nonconforming_items, confirmed_defects, pending_candidates, confirmed_operator_errors, rework_operations, durations]
+      properties:
+        computed_at: { type: string, format: date-time }
+        revision: { type: integer, minimum: 0 }
+        filters: { type: object, additionalProperties: true }
+        inspected_items: { type: integer, minimum: 0 }
+        confirmed_nonconforming_items: { type: integer, minimum: 0 }
+        confirmed_defects: { type: integer, minimum: 0 }
+        pending_candidates: { type: integer, minimum: 0 }
+        confirmed_operator_errors: { type: integer, minimum: 0 }
+        rework_operations: { type: integer, minimum: 0 }
+        durations: { type: array, items: { $ref: '#/components/schemas/DurationAggregate' } }
+    DurationAggregate:
+      type: object
+      required: [group, kind, origin, unit, completed_count, incomplete_count, invalid_count]
+      properties:
+        group: { type: object, additionalProperties: { type: string } }
+        kind: { type: string, enum: [active_processing, station_elapsed] }
+        origin: { type: string, enum: [reported, calculated] }
+        unit: { type: string, const: s }
+        mean: { type: [number, 'null'], minimum: 0 }
+        completed_count: { type: integer, minimum: 0 }
+        incomplete_count: { type: integer, minimum: 0 }
+        invalid_count: { type: integer, minimum: 0 }
+    Delivery:
+      type: object
+      required: [message_id, external_order_id, item_id, result_version, status, attempts]
+      properties:
+        message_id: { $ref: '#/components/schemas/Id' }
+        external_order_id: { $ref: '#/components/schemas/Id' }
+        item_id: { $ref: '#/components/schemas/Id' }
+        result_version: { type: integer, minimum: 1 }
+        status: { type: string, enum: [pending, retrying, acknowledged, failed] }
+        attempts: { type: integer, minimum: 0 }
+        last_error: { type: string }
+        acknowledged_at: { type: string, format: date-time }
+    DeliveryPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Delivery' } }
+        next_cursor: { type: [string, 'null'] }

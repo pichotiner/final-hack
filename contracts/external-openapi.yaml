@@ -1,0 +1,75 @@
+openapi: 3.1.0
+info:
+  title: Final Hack external ERP emulator
+  version: 0.2.0
+  description: Synthetic exchange contract; not a vendor 1C or Galaxy API.
+servers:
+  - url: http://localhost:8090
+paths:
+  /external/v1/work-orders:
+    get:
+      operationId: fetchExternalWorkOrders
+      parameters:
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Work order page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WorkOrderPage' }
+  /external/v1/quality-results:
+    post:
+      operationId: submitQualityResult
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/QualityResult' }
+      responses:
+        '201': { description: Accepted, content: { application/json: { schema: { $ref: '#/components/schemas/Ack' } } } }
+        '200': { description: Duplicate with same message ID and content, content: { application/json: { schema: { $ref: '#/components/schemas/Ack' } } } }
+        '409': { description: Same message ID with different content, content: { application/json: { schema: { $ref: '#/components/schemas/Ack' } } } }
+        '422': { description: Invalid message, content: { application/json: { schema: { $ref: '#/components/schemas/Ack' } } } }
+        '429': { description: Retryable rate limit }
+        '503': { description: Retryable outage }
+components:
+  schemas:
+    ExternalWorkOrder:
+      type: object
+      required: [message_id, external_order_id, revision, item_type_id, item_ids, route_id, route_version, checkpoints]
+      properties:
+        message_id: { type: string, minLength: 1 }
+        external_order_id: { type: string, minLength: 1 }
+        revision: { type: integer, minimum: 1 }
+        item_type_id: { type: string, minLength: 1 }
+        item_ids: { type: array, items: { type: string } }
+        route_id: { type: string }
+        route_version: { type: string }
+        checkpoints: { type: array, items: { type: string } }
+        components: { type: object, additionalProperties: { type: array, items: { type: string } } }
+    WorkOrderPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/ExternalWorkOrder' } }
+        next_cursor: { type: [string, 'null'] }
+    QualityResult:
+      type: object
+      required: [message_id, external_order_id, external_item_id, result_version, disposition, confirmed_nonconformities, cause_status, review_required]
+      properties:
+        message_id: { type: string, minLength: 1 }
+        external_order_id: { type: string, minLength: 1 }
+        external_item_id: { type: string, minLength: 1 }
+        result_version: { type: integer, minimum: 1 }
+        disposition: { type: string, enum: [pending, released, rework, rejected] }
+        confirmed_nonconformities: { type: array, items: { type: string } }
+        cause_status: { type: string, enum: [unresolved, hypothesis, established] }
+        review_required: { type: boolean }
+        previous_message_id: { type: string }
+    Ack:
+      type: object
+      required: [status, message_id]
+      properties:
+        status: { type: string, enum: [accepted, duplicate, rejected] }
+        message_id: { type: [string, 'null'] }
+        error: { type: string }

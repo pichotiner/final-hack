@@ -1,0 +1,1037 @@
+{
+  "metadata": {
+    "synthetic": true,
+    "seed": 2026,
+    "schema_version": "1.0"
+  },
+  "work_orders": [
+    {
+      "message_id": "erp-order-001-v1",
+      "external_order_id": "order-001",
+      "revision": 1,
+      "item_type_id": "bracket-demo",
+      "item_ids": [
+        "assembly-001",
+        "assembly-002",
+        "assembly-003",
+        "assembly-004"
+      ],
+      "route_id": "route-bracket",
+      "route_version": "1",
+      "checkpoints": [
+        "incoming-incoming",
+        "station-machining-after_operation",
+        "station-assembly-final"
+      ],
+      "components": {
+        "assembly-001": [
+          "bracket-001",
+          "insert-001"
+        ],
+        "assembly-002": [
+          "bracket-002",
+          "insert-002"
+        ],
+        "assembly-003": [
+          "bracket-003",
+          "insert-003"
+        ],
+        "assembly-004": [
+          "bracket-004",
+          "insert-004"
+        ]
+      }
+    }
+  ],
+  "negative_cases": [
+    {
+      "id": "unsupported-version",
+      "event": {
+        "event_id": "evt-unsupported-version",
+        "event_type": "item_received",
+        "schema_version": "9.0",
+        "occurred_at": "2026-09-25T10:01:00Z",
+        "source_id": "line-emulator-1",
+        "item_id": "assembly-001",
+        "item_type_id": "bracket-demo",
+        "line_id": "line-1",
+        "station_id": "incoming",
+        "operation_run_id": null,
+        "operator_id": null,
+        "equipment_id": null,
+        "identification_status": "reliable",
+        "time_quality": "synchronized",
+        "payload": {
+          "work_order_id": "order-001",
+          "component_ids": [
+            "bracket-001",
+            "insert-001"
+          ],
+          "assembly_version": "1"
+        }
+      }
+    },
+    {
+      "id": "missing-event-id",
+      "event": {
+        "event_type": "item_received",
+        "schema_version": "1.0",
+        "occurred_at": "2026-09-25T10:01:00Z",
+        "source_id": "line-emulator-1",
+        "item_id": "assembly-001",
+        "item_type_id": "bracket-demo",
+        "line_id": "line-1",
+        "station_id": "incoming",
+        "operation_run_id": null,
+        "operator_id": null,
+        "equipment_id": null,
+        "identification_status": "reliable",
+        "time_quality": "synchronized",
+        "payload": {
+          "work_order_id": "order-001",
+          "component_ids": [
+            "bracket-001",
+            "insert-001"
+          ],
+          "assembly_version": "1"
+        }
+      }
+    },
+    {
+      "id": "invalid-enum",
+      "event": {
+        "event_id": "evt-invalid-result",
+        "event_type": "inspection_observed",
+        "schema_version": "1.0",
+        "occurred_at": "2026-09-25T10:10:00Z",
+        "source_id": "vision-emulator-1",
+        "item_id": "assembly-001",
+        "item_type_id": "bracket-demo",
+        "line_id": "line-1",
+        "station_id": "station-assembly",
+        "operation_run_id": null,
+        "operator_id": null,
+        "equipment_id": null,
+        "identification_status": "reliable",
+        "time_quality": "synchronized",
+        "payload": {
+          "inspection_result": "maybe",
+          "checkpoint_id": "station-assembly-final",
+          "inspection_phase": "final",
+          "observation_quality": "good",
+          "confidence": 0.91,
+          "defects": [
+            {
+              "defect_ref": "mark-001",
+              "type": "surface-mark",
+              "description": "Синтетический признак",
+              "component_id": "insert-001",
+              "region_id": "face-A"
+            }
+          ],
+          "evidence_refs": [],
+          "analyzer_version": "emulator-1"
+        }
+      }
+    },
+    {
+      "id": "conflicting-event-id",
+      "event": {
+        "event_id": "evt-001-final",
+        "event_type": "inspection_observed",
+        "schema_version": "1.0",
+        "occurred_at": "2026-09-25T10:10:00Z",
+        "source_id": "vision-emulator-1",
+        "item_id": "assembly-001",
+        "item_type_id": "bracket-demo",
+        "line_id": "line-1",
+        "station_id": "station-assembly",
+        "operation_run_id": null,
+        "operator_id": null,
+        "equipment_id": null,
+        "identification_status": "reliable",
+        "time_quality": "synchronized",
+        "payload": {
+          "inspection_result": "defect_signs",
+          "checkpoint_id": "station-assembly-final",
+          "inspection_phase": "final",
+          "observation_quality": "good",
+          "confidence": 0.91,
+          "defects": [
+            {
+              "defect_ref": "mark-001",
+              "type": "surface-mark",
+              "description": "Другое содержимое с тем же ID",
+              "component_id": "insert-001",
+              "region_id": "face-A"
+            }
+          ],
+          "evidence_refs": [],
+          "analyzer_version": "emulator-1"
+        }
+      }
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "first-slice",
+      "events": [
+        {
+          "event_id": "evt-assembly-001-received",
+          "event_type": "item_received",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T10:01:00Z",
+          "source_id": "line-emulator-1",
+          "item_id": "assembly-001",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "incoming",
+          "operation_run_id": null,
+          "operator_id": null,
+          "equipment_id": null,
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "work_order_id": "order-001",
+            "component_ids": [
+              "bracket-001",
+              "insert-001"
+            ],
+            "assembly_version": "1"
+          }
+        },
+        {
+          "event_id": "evt-001-incoming",
+          "event_type": "inspection_observed",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T10:02:00Z",
+          "source_id": "vision-emulator-1",
+          "item_id": "assembly-001",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "incoming",
+          "operation_run_id": null,
+          "operator_id": null,
+          "equipment_id": null,
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "inspection_result": "no_defect_signs",
+            "checkpoint_id": "incoming-incoming",
+            "inspection_phase": "incoming",
+            "observation_quality": "good",
+            "confidence": 0.91,
+            "defects": [],
+            "evidence_refs": [],
+            "analyzer_version": "emulator-1"
+          }
+        },
+        {
+          "event_id": "evt-machining-001-start",
+          "event_type": "operation_started",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T10:03:00Z",
+          "source_id": "line-emulator-1",
+          "item_id": "assembly-001",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "station-machining",
+          "operation_run_id": "run-machining-001",
+          "operator_id": "operator-01",
+          "equipment_id": "machine-01",
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "operation_type_id": "machining",
+            "shift_id": "shift-1"
+          }
+        },
+        {
+          "event_id": "evt-machining-001-finish",
+          "event_type": "operation_finished",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T10:05:00Z",
+          "source_id": "line-emulator-1",
+          "item_id": "assembly-001",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "station-machining",
+          "operation_run_id": "run-machining-001",
+          "operator_id": "operator-01",
+          "equipment_id": "machine-01",
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "operation_type_id": "machining",
+            "shift_id": "shift-1"
+          }
+        },
+        {
+          "event_id": "evt-001-after-machining",
+          "event_type": "inspection_observed",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T10:06:00Z",
+          "source_id": "vision-emulator-1",
+          "item_id": "assembly-001",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "station-machining",
+          "operation_run_id": "run-machining-001",
+          "operator_id": null,
+          "equipment_id": null,
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "inspection_result": "no_defect_signs",
+            "checkpoint_id": "station-machining-after_operation",
+            "inspection_phase": "after_operation",
+            "observation_quality": "good",
+            "confidence": 0.91,
+            "defects": [],
+            "evidence_refs": [],
+            "analyzer_version": "emulator-1"
+          }
+        },
+        {
+          "event_id": "evt-assembly-001-start",
+          "event_type": "operation_started",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T10:07:00Z",
+          "source_id": "line-emulator-1",
+          "item_id": "assembly-001",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "station-assembly",
+          "operation_run_id": "run-assembly-001",
+          "operator_id": "operator-02",
+          "equipment_id": "machine-02",
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "operation_type_id": "assembly",
+            "shift_id": "shift-1"
+          }
+        },
+        {
+          "event_id": "evt-machine-02-warning",
+          "event_type": "machine_state",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T10:08:00Z",
+          "source_id": "line-emulator-1",
+          "item_id": "assembly-001",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "station-assembly",
+          "operation_run_id": "run-assembly-001",
+          "operator_id": null,
+          "equipment_id": "machine-02",
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "state": "warning",
+            "parameters": {
+              "vibration": "above-demo-baseline",
+              "severity_index": 2
+            },
+            "description": "Синтетическое отклонение"
+          }
+        },
+        {
+          "event_id": "evt-001-operator-action",
+          "event_type": "operator_action",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T10:08:30Z",
+          "source_id": "line-emulator-1",
+          "item_id": "assembly-001",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "station-assembly",
+          "operation_run_id": "run-assembly-001",
+          "operator_id": "operator-02",
+          "equipment_id": "machine-02",
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "action_type": "adjust_fixture",
+            "details": {
+              "note": "Проверка фиксации после предупреждения станка"
+            }
+          }
+        },
+        {
+          "event_id": "evt-assembly-001-finish",
+          "event_type": "operation_finished",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T10:09:00Z",
+          "source_id": "line-emulator-1",
+          "item_id": "assembly-001",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "station-assembly",
+          "operation_run_id": "run-assembly-001",
+          "operator_id": "operator-02",
+          "equipment_id": "machine-02",
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "operation_type_id": "assembly",
+            "shift_id": "shift-1"
+          }
+        },
+        {
+          "event_id": "evt-001-final",
+          "event_type": "inspection_observed",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T10:10:00Z",
+          "source_id": "vision-emulator-1",
+          "item_id": "assembly-001",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "station-assembly",
+          "operation_run_id": null,
+          "operator_id": null,
+          "equipment_id": null,
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "inspection_result": "defect_signs",
+            "checkpoint_id": "station-assembly-final",
+            "inspection_phase": "final",
+            "observation_quality": "good",
+            "confidence": 0.91,
+            "defects": [
+              {
+                "defect_ref": "mark-001",
+                "type": "surface-mark",
+                "description": "Синтетический признак",
+                "component_id": "insert-001",
+                "region_id": "face-A"
+              }
+            ],
+            "evidence_refs": [],
+            "analyzer_version": "emulator-1"
+          }
+        },
+        {
+          "event_id": "evt-001-final-repeat-observation",
+          "event_type": "inspection_observed",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T10:11:00Z",
+          "source_id": "vision-emulator-1",
+          "item_id": "assembly-001",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "station-assembly",
+          "operation_run_id": null,
+          "operator_id": null,
+          "equipment_id": null,
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "inspection_result": "defect_signs",
+            "checkpoint_id": "station-assembly-final",
+            "inspection_phase": "final",
+            "observation_quality": "good",
+            "confidence": 0.91,
+            "defects": [
+              {
+                "defect_ref": "mark-001",
+                "type": "surface-mark",
+                "description": "Синтетический признак",
+                "component_id": "insert-001",
+                "region_id": "face-A"
+              }
+            ],
+            "evidence_refs": [],
+            "analyzer_version": "emulator-1"
+          }
+        }
+      ],
+      "duplicate_event_ids": [
+        "evt-001-final"
+      ],
+      "late_events": [
+        {
+          "event_id": "evt-001-late-incoming",
+          "event_type": "inspection_observed",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T10:02:30Z",
+          "source_id": "vision-emulator-1",
+          "item_id": "assembly-001",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "incoming",
+          "operation_run_id": null,
+          "operator_id": null,
+          "equipment_id": null,
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "inspection_result": "defect_signs",
+            "checkpoint_id": "incoming-incoming",
+            "inspection_phase": "incoming",
+            "observation_quality": "good",
+            "confidence": 0.91,
+            "defects": [
+              {
+                "defect_ref": "mark-001",
+                "type": "surface-mark",
+                "description": "Синтетический признак",
+                "component_id": "insert-001",
+                "region_id": "face-A"
+              }
+            ],
+            "evidence_refs": [],
+            "analyzer_version": "emulator-1"
+          }
+        }
+      ],
+      "actions": [
+        {
+          "kind": "nonconformity",
+          "item_id": "assembly-001",
+          "decision": "confirm",
+          "reason": "Признак подтверждён на двух наблюдениях; причина не установлена"
+        },
+        {
+          "kind": "disposition",
+          "item_id": "assembly-001",
+          "disposition": "rework",
+          "reason": "Требуется устранение подтверждённого дефекта"
+        }
+      ]
+    },
+    {
+      "id": "normal",
+      "events": [
+        {
+          "event_id": "evt-assembly-002-received",
+          "event_type": "item_received",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T11:01:00Z",
+          "source_id": "line-emulator-1",
+          "item_id": "assembly-002",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "incoming",
+          "operation_run_id": null,
+          "operator_id": null,
+          "equipment_id": null,
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "work_order_id": "order-001",
+            "component_ids": [
+              "bracket-002",
+              "insert-002"
+            ],
+            "assembly_version": "1"
+          }
+        },
+        {
+          "event_id": "evt-002-incoming",
+          "event_type": "inspection_observed",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T11:02:00Z",
+          "source_id": "vision-emulator-1",
+          "item_id": "assembly-002",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "incoming",
+          "operation_run_id": null,
+          "operator_id": null,
+          "equipment_id": null,
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "inspection_result": "no_defect_signs",
+            "checkpoint_id": "incoming-incoming",
+            "inspection_phase": "incoming",
+            "observation_quality": "good",
+            "confidence": 0.91,
+            "defects": [],
+            "evidence_refs": [],
+            "analyzer_version": "emulator-1"
+          }
+        },
+        {
+          "event_id": "evt-machining-002-start",
+          "event_type": "operation_started",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T11:03:00Z",
+          "source_id": "line-emulator-1",
+          "item_id": "assembly-002",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "station-machining",
+          "operation_run_id": "run-machining-002",
+          "operator_id": "operator-01",
+          "equipment_id": "machine-01",
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "operation_type_id": "machining",
+            "shift_id": "shift-1"
+          }
+        },
+        {
+          "event_id": "evt-machining-002-finish",
+          "event_type": "operation_finished",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T11:05:00Z",
+          "source_id": "line-emulator-1",
+          "item_id": "assembly-002",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "station-machining",
+          "operation_run_id": "run-machining-002",
+          "operator_id": "operator-01",
+          "equipment_id": "machine-01",
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "operation_type_id": "machining",
+            "shift_id": "shift-1"
+          }
+        },
+        {
+          "event_id": "evt-002-after",
+          "event_type": "inspection_observed",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T11:06:00Z",
+          "source_id": "vision-emulator-1",
+          "item_id": "assembly-002",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "station-machining",
+          "operation_run_id": "run-machining-002",
+          "operator_id": null,
+          "equipment_id": null,
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "inspection_result": "no_defect_signs",
+            "checkpoint_id": "station-machining-after_operation",
+            "inspection_phase": "after_operation",
+            "observation_quality": "good",
+            "confidence": 0.91,
+            "defects": [],
+            "evidence_refs": [],
+            "analyzer_version": "emulator-1"
+          }
+        },
+        {
+          "event_id": "evt-assembly-002-start",
+          "event_type": "operation_started",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T11:07:00Z",
+          "source_id": "line-emulator-1",
+          "item_id": "assembly-002",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "station-assembly",
+          "operation_run_id": "run-assembly-002",
+          "operator_id": "operator-02",
+          "equipment_id": "machine-02",
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "operation_type_id": "assembly",
+            "shift_id": "shift-1"
+          }
+        },
+        {
+          "event_id": "evt-assembly-002-finish",
+          "event_type": "operation_finished",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T11:09:00Z",
+          "source_id": "line-emulator-1",
+          "item_id": "assembly-002",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "station-assembly",
+          "operation_run_id": "run-assembly-002",
+          "operator_id": "operator-02",
+          "equipment_id": "machine-02",
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "operation_type_id": "assembly",
+            "shift_id": "shift-1"
+          }
+        },
+        {
+          "event_id": "evt-002-final",
+          "event_type": "inspection_observed",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T11:10:00Z",
+          "source_id": "vision-emulator-1",
+          "item_id": "assembly-002",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "station-assembly",
+          "operation_run_id": null,
+          "operator_id": null,
+          "equipment_id": null,
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "inspection_result": "no_defect_signs",
+            "checkpoint_id": "station-assembly-final",
+            "inspection_phase": "final",
+            "observation_quality": "good",
+            "confidence": 0.91,
+            "defects": [],
+            "evidence_refs": [],
+            "analyzer_version": "emulator-1"
+          }
+        }
+      ],
+      "duplicate_event_ids": [],
+      "late_events": [],
+      "actions": [
+        {
+          "kind": "disposition",
+          "item_id": "assembly-002",
+          "disposition": "released",
+          "reason": "Обязательные контрольные точки пройдены"
+        }
+      ]
+    },
+    {
+      "id": "incoming-defect",
+      "events": [
+        {
+          "event_id": "evt-assembly-003-received",
+          "event_type": "item_received",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T12:01:00Z",
+          "source_id": "line-emulator-1",
+          "item_id": "assembly-003",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "incoming",
+          "operation_run_id": null,
+          "operator_id": null,
+          "equipment_id": null,
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "work_order_id": "order-001",
+            "component_ids": [
+              "bracket-003",
+              "insert-003"
+            ],
+            "assembly_version": "1"
+          }
+        },
+        {
+          "event_id": "evt-003-incoming",
+          "event_type": "inspection_observed",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T12:02:00Z",
+          "source_id": "vision-emulator-1",
+          "item_id": "assembly-003",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "incoming",
+          "operation_run_id": null,
+          "operator_id": null,
+          "equipment_id": null,
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "inspection_result": "defect_signs",
+            "checkpoint_id": "incoming-incoming",
+            "inspection_phase": "incoming",
+            "observation_quality": "good",
+            "confidence": 0.91,
+            "defects": [
+              {
+                "defect_ref": "chip-003",
+                "type": "edge-chip",
+                "description": "Синтетический признак",
+                "component_id": "bracket-003",
+                "region_id": "face-A"
+              }
+            ],
+            "evidence_refs": [],
+            "analyzer_version": "emulator-1"
+          }
+        },
+        {
+          "event_id": "evt-machining-003-start",
+          "event_type": "operation_started",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T12:03:00Z",
+          "source_id": "line-emulator-1",
+          "item_id": "assembly-003",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "station-machining",
+          "operation_run_id": "run-machining-003",
+          "operator_id": "operator-01",
+          "equipment_id": "machine-01",
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "operation_type_id": "machining",
+            "shift_id": "shift-1"
+          }
+        },
+        {
+          "event_id": "evt-machining-003-finish",
+          "event_type": "operation_finished",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T12:05:00Z",
+          "source_id": "line-emulator-1",
+          "item_id": "assembly-003",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "station-machining",
+          "operation_run_id": "run-machining-003",
+          "operator_id": "operator-01",
+          "equipment_id": "machine-01",
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "operation_type_id": "machining",
+            "shift_id": "shift-1"
+          }
+        },
+        {
+          "event_id": "evt-003-after",
+          "event_type": "inspection_observed",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T12:06:00Z",
+          "source_id": "vision-emulator-1",
+          "item_id": "assembly-003",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "station-machining",
+          "operation_run_id": "run-machining-003",
+          "operator_id": null,
+          "equipment_id": null,
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "inspection_result": "defect_signs",
+            "checkpoint_id": "station-machining-after_operation",
+            "inspection_phase": "after_operation",
+            "observation_quality": "good",
+            "confidence": 0.91,
+            "defects": [
+              {
+                "defect_ref": "chip-003",
+                "type": "edge-chip",
+                "description": "Синтетический признак",
+                "component_id": "bracket-003",
+                "region_id": "face-A"
+              }
+            ],
+            "evidence_refs": [],
+            "analyzer_version": "emulator-1"
+          }
+        }
+      ],
+      "duplicate_event_ids": [],
+      "late_events": [],
+      "actions": [
+        {
+          "kind": "nonconformity",
+          "item_id": "assembly-003",
+          "decision": "request_check",
+          "reason": "Входной признак требует дополнительной проверки"
+        }
+      ]
+    },
+    {
+      "id": "poor-and-multiple",
+      "events": [
+        {
+          "event_id": "evt-assembly-004-received",
+          "event_type": "item_received",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T13:01:00Z",
+          "source_id": "line-emulator-1",
+          "item_id": "assembly-004",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "incoming",
+          "operation_run_id": null,
+          "operator_id": null,
+          "equipment_id": null,
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "work_order_id": "order-001",
+            "component_ids": [
+              "bracket-004",
+              "insert-004"
+            ],
+            "assembly_version": "1"
+          }
+        },
+        {
+          "event_id": "evt-004-poor",
+          "event_type": "inspection_observed",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T13:02:00Z",
+          "source_id": "vision-emulator-1",
+          "item_id": "assembly-004",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "incoming",
+          "operation_run_id": null,
+          "operator_id": null,
+          "equipment_id": null,
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "inspection_result": "no_defect_signs",
+            "checkpoint_id": "incoming-incoming",
+            "inspection_phase": "incoming",
+            "observation_quality": "poor",
+            "confidence": null,
+            "defects": [],
+            "evidence_refs": [],
+            "analyzer_version": "emulator-1"
+          }
+        },
+        {
+          "event_id": "evt-machining-004-start",
+          "event_type": "operation_started",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T13:03:00Z",
+          "source_id": "line-emulator-1",
+          "item_id": "assembly-004",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "station-machining",
+          "operation_run_id": "run-machining-004",
+          "operator_id": "operator-01",
+          "equipment_id": "machine-01",
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "operation_type_id": "machining",
+            "shift_id": "shift-1"
+          }
+        },
+        {
+          "event_id": "evt-machining-004-finish",
+          "event_type": "operation_finished",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T13:05:00Z",
+          "source_id": "line-emulator-1",
+          "item_id": "assembly-004",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "station-machining",
+          "operation_run_id": "run-machining-004",
+          "operator_id": "operator-01",
+          "equipment_id": "machine-01",
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "operation_type_id": "machining",
+            "shift_id": "shift-1"
+          }
+        },
+        {
+          "event_id": "evt-004-multi",
+          "event_type": "inspection_observed",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T13:06:00Z",
+          "source_id": "vision-emulator-1",
+          "item_id": "assembly-004",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "station-machining",
+          "operation_run_id": "run-machining-004",
+          "operator_id": null,
+          "equipment_id": null,
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "inspection_result": "defect_signs",
+            "checkpoint_id": "station-machining-after_operation",
+            "inspection_phase": "after_operation",
+            "observation_quality": "good",
+            "confidence": 0.91,
+            "defects": [
+              {
+                "defect_ref": "scratch-004",
+                "type": "scratch",
+                "description": "Синтетический признак",
+                "component_id": "bracket-004",
+                "region_id": "face-A"
+              },
+              {
+                "defect_ref": "dent-004",
+                "type": "dent",
+                "description": "Синтетический признак",
+                "component_id": "bracket-004",
+                "region_id": "face-B"
+              }
+            ],
+            "evidence_refs": [],
+            "analyzer_version": "emulator-1"
+          }
+        },
+        {
+          "event_id": "evt-machining-004-rework-start",
+          "event_type": "operation_started",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T13:07:00Z",
+          "source_id": "line-emulator-1",
+          "item_id": "assembly-004",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "station-machining",
+          "operation_run_id": "run-machining-004-rework",
+          "operator_id": "operator-01",
+          "equipment_id": "machine-01",
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "operation_type_id": "machining",
+            "shift_id": "shift-1",
+            "previous_operation_run_id": "run-machining-004"
+          }
+        },
+        {
+          "event_id": "evt-machining-004-rework-finish",
+          "event_type": "operation_finished",
+          "schema_version": "1.0",
+          "occurred_at": "2026-09-25T13:09:00Z",
+          "source_id": "line-emulator-1",
+          "item_id": "assembly-004",
+          "item_type_id": "bracket-demo",
+          "line_id": "line-1",
+          "station_id": "station-machining",
+          "operation_run_id": "run-machining-004-rework",
+          "operator_id": "operator-01",
+          "equipment_id": "machine-01",
+          "identification_status": "reliable",
+          "time_quality": "synchronized",
+          "payload": {
+            "operation_type_id": "machining",
+            "shift_id": "shift-1",
+            "previous_operation_run_id": "run-machining-004"
+          }
+        }
+      ],
+      "duplicate_event_ids": [],
+      "late_events": [],
+      "actions": [
+        {
+          "kind": "nonconformity",
+          "item_id": "assembly-004",
+          "decision": "request_check",
+          "reason": "Неоценимый входной контроль и два признака требуют проверки"
+        }
+      ]
+    }
+  ]
+}

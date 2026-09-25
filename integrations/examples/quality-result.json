@@ -1,0 +1,10 @@
+{
+  "message_id": "quality-assembly-001-v1",
+  "external_order_id": "order-001",
+  "external_item_id": "assembly-001",
+  "result_version": 1,
+  "disposition": "rework",
+  "confirmed_nonconformities": ["card-001"],
+  "cause_status": "unresolved",
+  "review_required": false
+}
