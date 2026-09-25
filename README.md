@@ -63,7 +63,7 @@ UI обращается к `http://localhost:8000` через прокси Vite,
 
 Сценарии и независимые ожидания: `data/scenarios.json` и `data/expected.json`. После подключения backend источник событий запускается командой `python3 emulator/replay.py first-slice --duplicate` при настроенных `LINE_SOURCE_TOKEN` и `VISION_SOURCE_TOKEN`; поздний сигнал отдельно — `--late-only`. Опции `--negative` проверяют ошибки версии/полей/enum/конфликта, `--decisions` применяет сценарные решения с `CONTROLLER_TOKEN`. Контроль решений и KPI через backend пока не выполнялся. Адаптеры 1С/Галактика/MES/КОМПАС являются файловыми примерами, не прямыми интеграциями.
 
-Материалы роли №2: [интеграции](docs/integrations.md), [проект камер и ИИ](docs/camera-ai.md), [матрица критериев](docs/acceptance-matrix.md), [презентация](docs/presentation.md), [сценарий скринкаста](docs/screencast.md), [передача на интеграцию](docs/role2-handoff.md). Скринкаст ещё не записан.
+Материалы роли №2: [интеграции](docs/integrations.md), [проект камер и ИИ](docs/camera-ai.md), [матрица критериев](docs/acceptance-matrix.md), [автономная презентация](presentation/index.html), [сценарий скринкаста](docs/screencast.md), [передача на интеграцию](docs/role2-handoff.md). Скринкаст ещё не записан.
 
 ## Главное правило
 
