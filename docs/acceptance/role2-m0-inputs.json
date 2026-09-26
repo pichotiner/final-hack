@@ -1,0 +1,56 @@
+{
+  "format": "role2-semantic-scenario-1",
+  "synthetic": true,
+  "purpose": "Предметные входы для адаптации к P5, не публичные HTTP DTO",
+  "order": "order-001",
+  "route": "route-bracket@1",
+  "profile": "backend/examples/erp-import-profile.json",
+  "clock": "2026-09-26 UTC",
+  "server_assigned": ["record_id", "basis_id", "context_revision", "control_cycle_id", "decision_id", "message_id"],
+  "cases": [
+    {
+      "id": "R2-NORMAL",
+      "item": "assembly-002",
+      "component": "insert-002",
+      "actions": [
+        {"at": "10:02:00", "kind": "inspection", "checkpoint": "incoming-surface", "result": "no_defect_signs", "quality": "good", "run": null},
+        {"at": "10:03:00", "kind": "operation_started", "run": "run-machining-002", "operator": "operator-01", "station": "station-machining"},
+        {"at": "10:05:00", "kind": "operation_finished", "run": "run-machining-002"},
+        {"at": "10:06:00", "kind": "inspection", "checkpoint": "after-machining", "result": "no_defect_signs", "quality": "good", "run": "run-machining-002"},
+        {"at": "10:07:00", "kind": "operation_started", "run": "run-assembly-002", "operator": "operator-02", "station": "station-assembly"},
+        {"at": "10:09:00", "kind": "operation_finished", "run": "run-assembly-002"},
+        {"at": "10:10:00", "kind": "inspection", "checkpoint": "final-surface", "result": "no_defect_signs", "quality": "good", "run": "run-assembly-002"},
+        {"kind": "human_disposition", "action": "released"},
+        {"kind": "deliver_and_reconcile_erp"}
+      ]
+    },
+    {
+      "id": "R2-REWORK",
+      "item": "assembly-001",
+      "component": "insert-001",
+      "initial_operations": [{"run": "run-machining-001", "start": "10:03:00", "finish": "10:05:00"}, {"run": "run-assembly-001", "start": "10:07:00", "finish": "10:09:00"}],
+      "initial_controls": [{"checkpoint": "incoming-surface", "at": "10:02:00", "result": "no_defect_signs"}, {"checkpoint": "after-machining", "at": "10:06:00", "result": "no_defect_signs"}, {"checkpoint": "final-surface", "at": "10:10:00", "result": "defect_signs", "ref": "mark-001"}],
+      "source": "vision-emulator-1",
+      "region": "face-A",
+      "quality": "good",
+      "method": "emulator-1",
+      "actions": ["confirm", "rework_disposition", "new_cycle_with_new_registered_sessions", "finish_rework", "repeat_all_three_controls_good_no_defect_signs", "resolve_using_final_control_raw_record", "released", "deliver_and_reconcile_erp"],
+      "repair": {"run": "repair-1", "previous_run": "run-assembly-001", "start": "10:20:00", "finish": "10:22:00", "repeat_controls_at": "10:23:00", "incoming_run": null, "other_controls_run": "repair-1"}
+    },
+    {
+      "id": "R2-UNKNOWN",
+      "item": "assembly-003",
+      "component": "insert-003",
+      "initial_operations": [{"run": "run-machining-003", "start": "10:03:00", "finish": "10:05:00"}, {"run": "run-assembly-003", "start": "10:07:00", "finish": "10:09:00"}],
+      "controls": [{"checkpoint": "incoming-surface", "result": "no_defect_signs", "quality": "good"}, {"checkpoint": "after-machining", "result": "no_defect_signs", "quality": "good"}, {"checkpoint": "final-surface", "result": "no_defect_signs", "quality": "poor"}],
+      "actions": ["attempt_released"]
+    }
+  ],
+  "independent_variants": [
+    {"id": "R2-DUPLICATE", "base": "R2-REWORK", "change": "Повторить принятое финальное сообщение с прежним source/event/body"},
+    {"id": "R2-SECOND-OBSERVATION", "base": "R2-REWORK", "change": "До confirm добавить новый event того же source/item/component/region/ref"},
+    {"id": "R2-TWO-SIGNS", "base": "R2-REWORK", "change": "Вместо одного знака final дать mark-A/face-A и mark-B/face-B; сохранить B, подтвердить каждую карточку отдельно по актуальному B"},
+    {"id": "R2-LATE", "base": "R2-REWORK", "change": "После confirm/rework принять старое по occurred_at входное наблюдение mark-001, прежде отсутствовавшее в B; до доработки"},
+    {"id": "R2-WARNING", "base": "R2-REWORK", "change": "В 10:08 добавить machine-02 warning в run-assembly-001 и действие operator-02; не подавать решение об установленной причине"}
+  ]
+}

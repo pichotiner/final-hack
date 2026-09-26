@@ -1,0 +1,19 @@
+{
+  "format": "role2-semantic-expectations-1",
+  "synthetic": true,
+  "status": "NOT_RUN",
+  "authorship": "Ручные ожидания роли №2 по DP-01 и PDF; не результат reducer или генератора входов",
+  "cohort": "Указанное в каждом случае изделие; независимый чистый случай, история целиком",
+  "cases": [
+    {"id": "R2-NORMAL", "expected": {"inspected_items": 1, "confirmed_defects": 0, "confirmed_nonconforming_items": 0, "rework_operations": 0, "disposition": "released", "release_allowed_now": true, "blockers": [], "operation_station_elapsed_seconds": [120, 120], "erp_disposition_decision_required": true, "delivery_acknowledged": true}},
+    {"id": "R2-REWORK", "expected": {"inspected_items": 1, "confirmed_defects": 1, "confirmed_nonconforming_items": 1, "open_confirmed_defects": 0, "resolved_confirmed_defects": 1, "rework_operations": 1, "disposition": "released", "release_allowed_now": true, "blockers": [], "old_basis_unchanged": true, "cause": "unresolved", "confirmed_operator_errors": 0, "erp_resolved_card_retained": true, "delivery_acknowledged": true}},
+    {"id": "R2-UNKNOWN", "expected": {"inspected_items": 1, "confirmed_defects": 0, "release_allowed_now": false, "release_http_status": 409, "final_effective_result": "not_assessable", "raw_final_result": "no_defect_signs", "raw_final_quality": "poor", "new_release_decisions": 0}},
+    {"id": "R2-DUPLICATE", "expected_delta": {"raw_records": 0, "observations": 0, "context_revision": 0, "outbox_messages": 0, "confirmed_defects": 0}, "same_original_receipt": true},
+    {"id": "R2-SECOND-OBSERVATION", "expected": {"logical_candidates_before_confirm": 1, "positive_observations_for_candidate": 2, "confirmed_defects_after_confirm": 1}},
+    {"id": "R2-TWO-SIGNS", "expected": {"logical_candidates": 2, "positive_observations": 2, "distinct_raw_records_for_signs": 1, "distinct_feature_indices": 2, "confirmed_defects_after_both_confirmations": 2, "confirmed_nonconforming_items": 1}},
+    {"id": "R2-LATE", "expected": {"old_basis_unchanged": true, "new_basis_contains_late_record": true, "old_basis_contains_late_record": false, "review_required": true, "release_allowed_now": false, "confirmed_defects": 1, "confirmed_operator_errors": 0}},
+    {"id": "R2-WARNING", "expected": {"cause_before_explicit_cause_decision": "unresolved_or_hypothesis", "confirmed_operator_errors": 0, "equipment_event_and_operator_action_visible": true}}
+  ],
+  "erp_checks_for_successful_delivery": ["same_message_id", "same_stream_identity", "same_result_version", "same_digest_of_saved_wire_body", "persisted_receiver_commit_receipt", "persisted_core_ack", "current_erp_version_checked_separately"],
+  "notes": ["Semantic expectation keys are not promised API field names; P5 mapping must be explicit", "Missing API capability means BLOCKED, never an invented zero", "confirmed_nonconforming_items counts currently confirmed cards including resolved, not items currently forbidden for release", "No physical camera accuracy, downtime resilience or disaster restore is established by these cases"]
+}
