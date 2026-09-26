@@ -1,0 +1,31 @@
+{
+  "name": "efqa-dp01-demonstrator",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "generate": "openapi-typescript ../contracts/openapi.yaml -o src/generated/api.ts && openapi-typescript ../contracts/external-openapi.yaml -o src/generated/external.ts",
+    "test": "vitest run",
+    "check:generated": "node scripts/check-generated.mjs"
+  },
+  "dependencies": {
+    "react": "19.1.1",
+    "react-dom": "19.1.1"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/react": "16.3.0",
+    "@types/react": "19.1.13",
+    "@types/react-dom": "19.1.9",
+    "jsdom": "26.1.0",
+    "openapi-typescript": "7.9.1",
+    "typescript": "5.9.2",
+    "vite": "6.3.5",
+    "vitest": "3.2.4"
+  }
+}

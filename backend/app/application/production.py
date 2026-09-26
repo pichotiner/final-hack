@@ -62,7 +62,7 @@ class ProductionService:
         principal = self._require(token, {"integration"})
         return self.journal.import_work_order(order, mapper, actor_id=principal.actor_id)
 
-    def command(self, token: str, method: str, target_id: str, payload: dict):
+    def command(self, token: str, method: str, target_id: str, payload: dict, *, document=None):
         roles = {
             "decide_nonconformity": {"controller"},
             "resolve_nonconformity": {"controller"},
@@ -89,7 +89,11 @@ class ProductionService:
                 )
             )
         return self.quality.execute_command(
-            method, target_id, command_payload, actor_id=principal.actor_id, document=payload
+            method,
+            target_id,
+            command_payload,
+            actor_id=principal.actor_id,
+            document=payload if document is None else document,
         )
 
     def state(self, token, item_id):

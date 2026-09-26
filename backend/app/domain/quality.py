@@ -78,6 +78,7 @@ class Observation:
     identification_status: str = "uncertain"
     inspection_phase: str | None = None
     control_session_id: str | None = None
+    defect_index: int | None = None
 
 
 @dataclass(frozen=True)
@@ -148,6 +149,7 @@ class Decision:
     operation_run_id: str | None = None
     operator_id: str | None = None
     action_record_id: str | None = None
+    control_record_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -266,6 +268,7 @@ class QualityWorkflow:
         operation_run_ids: Iterable[str] = (),
         control_sessions: dict[str, str] | None = None,
         checkpoint_operation_run_ids: dict[str, str | None] | None = None,
+        rework_disposition_id: str | None = None,
     ) -> dict:
         """Open the explicitly assigned cycle after a rework disposition."""
         item = self._item(item_id)
@@ -281,6 +284,7 @@ class QualityWorkflow:
             "expected_revision": expected_revision,
             "expected_basis_id": expected_basis_id,
             "reason": reason,
+            "rework_disposition_id": rework_disposition_id,
         }
 
         def apply() -> dict:
@@ -290,6 +294,8 @@ class QualityWorkflow:
             if cycle_id in item.cycles:
                 raise InvalidTransition("A previously used control cycle cannot be reopened.")
             disposition_id = item.dispositions[-1].decision_id
+            if rework_disposition_id is not None and disposition_id != rework_disposition_id:
+                raise InvalidTransition("The cycle must reference the current rework disposition.")
             if any(cycle["disposition_id"] == disposition_id for cycle in item.cycles.values()):
                 raise InvalidTransition("This rework assignment already has a control cycle.")
             if set(payload["required_checkpoints"]) != set(item.required_checkpoints):
@@ -325,6 +331,18 @@ class QualityWorkflow:
                 raise InvalidTransition(
                     "Control sessions and operation bindings must be new and planned."
                 )
+            if item.context and any(
+                (
+                    rule.inspection_phase == "incoming"
+                    and run_by_checkpoint[rule.checkpoint_id] is not None
+                )
+                or (
+                    rule.inspection_phase != "incoming"
+                    and run_by_checkpoint[rule.checkpoint_id] is None
+                )
+                for rule in item.context.controls
+            ):
+                raise InvalidTransition("Control phase and operation binding do not agree.")
             item.cycle_id = _id(cycle_id, "cycle_id")
             item.required_checkpoints = tuple(payload["required_checkpoints"])
             item.cycles[cycle_id] = {
@@ -335,7 +353,12 @@ class QualityWorkflow:
                 "checkpoint_operation_run_ids": run_by_checkpoint,
             }
             item.context_revision += 1
-            result = {"cycle_id": item.cycle_id, "context_revision": item.context_revision}
+            result = {
+                "cycle_id": item.cycle_id,
+                "context_revision": item.context_revision,
+                "control_sessions": sessions,
+                "checkpoint_operation_run_ids": run_by_checkpoint,
+            }
             self._emit(item)
             return result
 
@@ -365,6 +388,7 @@ class QualityWorkflow:
         identification_status: str = "uncertain",
         inspection_phase: str | None = None,
         control_session_id: str | None = None,
+        defect_index: int | None = None,
     ) -> dict:
         """Attach one trusted observation and create/update its defect candidate."""
         item = self._item(item_id)
@@ -412,6 +436,7 @@ class QualityWorkflow:
                             "identification_status": identification_status,
                             "inspection_phase": inspection_phase,
                             "control_session_id": control_session_id,
+                            "defect_index": defect_index,
                         }.items()
                     )
                 ):
@@ -460,6 +485,7 @@ class QualityWorkflow:
                 identification_status=identification_status,
                 inspection_phase=inspection_phase,
                 control_session_id=control_session_id,
+                defect_index=defect_index,
             )
             item.observations[observation_id] = observation
             if item.dispositions and item.dispositions[-1].action == "released":
@@ -734,9 +760,11 @@ class QualityWorkflow:
         rework_operation_id: str,
         previous_operation_run_id: str,
         observation_ids: Iterable[str],
+        control_record_ids: Iterable[str] = (),
     ) -> dict:
         item, nc = self._nonconformity(nonconformity_id)
         observation_ids = tuple(observation_ids)
+        control_record_ids = tuple(control_record_ids)
         payload = {
             "actor_id": actor_id,
             "action": "resolve",
@@ -746,6 +774,7 @@ class QualityWorkflow:
             "rework_operation_id": rework_operation_id,
             "previous_operation_run_id": previous_operation_run_id,
             "observation_ids": observation_ids,
+            "control_record_ids": control_record_ids,
         }
 
         def apply() -> dict:
@@ -769,6 +798,11 @@ class QualityWorkflow:
                     "Resolution requires the registered completed rework operation for this cycle."
                 )
             observations = [item.observations.get(value) for value in observation_ids]
+            basis = item.bases[expected_basis_id]
+            if not set(observation_ids).issubset(basis.observation_ids) or not set(
+                control_record_ids
+            ).issubset(basis.evidence_record_ids):
+                raise InvalidTransition("Repeat control must belong to the reviewed basis.")
             if not observations or any(value is None for value in observations):
                 raise InvalidTransition("Resolution requires existing repeat-control observations.")
             if any(
@@ -825,6 +859,7 @@ class QualityWorkflow:
                 created_at=self.clock(),
                 rework_operation_id=rework_operation_id,
                 observation_ids=observation_ids,
+                control_record_ids=control_record_ids,
             )
             item.decisions.append(decision)
             nc.resolution_ids.append(decision.decision_id)
@@ -1163,6 +1198,35 @@ class QualityWorkflow:
             "nonconformities": nonconformities,
             "kpi": self._kpi(item),
         }
+        if item.context and item.context.erp_result_profile == "dp01-0.4":
+            payload = {
+                key: value
+                for key, value in payload.items()
+                if key not in {"item_id", "nonconformities", "kpi", "disposition_review_required"}
+            }
+            payload["confirmed_nonconformities"] = [
+                {
+                    "nonconformity_id": card["nonconformity_id"],
+                    "resolution_status": card["resolution_status"],
+                    "decision_id": card["current_decision"]["decision_id"],
+                    "resolution_id": (
+                        card["current_resolution"]["decision_id"]
+                        if card["current_resolution"]
+                        else None
+                    ),
+                    "cause_status": card["cause_status"],
+                    "cause_category": card["cause_category"],
+                    "basis_ids": list(
+                        dict.fromkeys(
+                            decision["basis_id"]
+                            for decision in (card["current_decision"], card["current_resolution"])
+                            if decision
+                        )
+                    ),
+                }
+                for card in nonconformities
+                if card["status"] == "confirmed"
+            ]
         body_digest = _digest(payload)
         message = OutboxMessage(
             message_id,
@@ -1370,6 +1434,7 @@ class QualityWorkflow:
             **value.__dict__,
             "observation_ids": list(value.observation_ids),
             "cause_evidence_record_ids": list(value.cause_evidence_record_ids),
+            "control_record_ids": list(value.control_record_ids),
             "created_at": value.created_at.isoformat(),
         }
 
@@ -1677,6 +1742,7 @@ class QualityWorkflow:
                             ),
                             inspection_phase=payload.get("inspection_phase"),
                             control_session_id=session,
+                            defect_index=index if defect is not None else None,
                         )
                 if document["event_type"] in {"operation_started", "operation_finished"}:
                     operation = next(

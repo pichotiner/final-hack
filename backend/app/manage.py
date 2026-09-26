@@ -24,6 +24,8 @@ def initialize(directory):
         "vision": ("source", "vision-1"),
         "mes": ("source", "mes-source"),
         "erp": ("source", "erp-source"),
+        "vision-demo": ("source", "vision-emulator-1"),
+        "line-demo": ("source", "line-emulator-1"),
     }
     tokens = {name: secrets.token_urlsafe(32) for name in users}
     identities = [
@@ -40,6 +42,7 @@ def initialize(directory):
         "identities.json": json.dumps(identities, indent=2),
         "demo-tokens.json": json.dumps(tokens, indent=2),
         "erp.token": secrets.token_urlsafe(32),
+        "import.token": tokens["integration"],
         "compose.env": (
             f"POSTGRES_PASSWORD={secrets.token_urlsafe(32)}\n"
             f"QC_APP_PASSWORD={secrets.token_urlsafe(32)}\n"

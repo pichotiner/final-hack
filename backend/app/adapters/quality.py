@@ -23,7 +23,12 @@ from app.adapters.postgres import (
     quality_state_versions,
 )
 from app.domain.control import decode_context
-from app.domain.errors import IdempotencyConflict, IntegrityViolation, UnknownEntity
+from app.domain.errors import (
+    IdempotencyConflict,
+    IntegrityViolation,
+    InvalidTransition,
+    UnknownEntity,
+)
 from app.domain.quality import (
     Basis,
     Decision,
@@ -154,6 +159,7 @@ def _decode(item: dict):
             operation_run_id=value.get("operation_run_id"),
             operator_id=value.get("operator_id"),
             action_record_id=value.get("action_record_id"),
+            control_record_ids=tuple(value.get("control_record_ids", ())),
         )
 
     def message(value):
@@ -349,6 +355,10 @@ class PostgresQualityWorkflow:
                 .on_conflict_do_nothing(index_elements=[quality_decisions.c.decision_id])
             )
         for message in item.outbox.values():
+            if "confirmed_nonconformities" in message.payload:
+                from app.adapters.shared_contract import validate
+
+                validate("QualityResult", message.payload, external=True, response=True)
             connection.execute(
                 insert(quality_outbox)
                 .values(
@@ -475,6 +485,9 @@ class PostgresQualityWorkflow:
 
     def resolve_nonconformity(self, nonconformity_id: str, **kwargs):
         item_id = self._find_item_id(nonconformity_id)
+        reference_field = (
+            "control_record_ids" if "control_record_ids" in kwargs else "observation_ids"
+        )
         payload = {
             key: kwargs[key]
             for key in (
@@ -483,11 +496,25 @@ class PostgresQualityWorkflow:
                 "expected_basis_id",
                 "rework_operation_id",
                 "previous_operation_run_id",
-                "observation_ids",
+                reference_field,
             )
         }
         payload["actor_id"] = kwargs["actor_id"]
         payload["action"] = "resolve"
+
+        def resolve(workflow):
+            arguments = dict(kwargs)
+            if reference_field == "control_record_ids":
+                records = tuple(arguments["control_record_ids"])
+                item = workflow._item(item_id)
+                observations = [
+                    obs for obs in item.observations.values() if obs.record_id in records
+                ]
+                if not records or {obs.record_id for obs in observations} != set(records):
+                    raise InvalidTransition("Control records must be inspections of this item.")
+                arguments["observation_ids"] = [obs.observation_id for obs in observations]
+            return workflow.resolve_nonconformity(nonconformity_id, **arguments)
+
         return self._command(
             item_id,
             kwargs["actor_id"],
@@ -495,7 +522,7 @@ class PostgresQualityWorkflow:
             nonconformity_id,
             kwargs["idempotency_key"],
             payload,
-            lambda workflow: workflow.resolve_nonconformity(nonconformity_id, **kwargs),
+            resolve,
         )
 
     def reopen_nonconformity(self, nonconformity_id, **kwargs):
@@ -546,6 +573,7 @@ class PostgresQualityWorkflow:
         payload["operation_run_ids"] = list(kwargs.get("operation_run_ids", ()))
         payload["control_sessions"] = kwargs.get("control_sessions", {})
         payload["checkpoint_operation_run_ids"] = kwargs.get("checkpoint_operation_run_ids", {})
+        payload["rework_disposition_id"] = kwargs.get("rework_disposition_id")
         return self._command(
             item_id,
             kwargs["actor_id"],

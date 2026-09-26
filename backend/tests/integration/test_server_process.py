@@ -109,7 +109,7 @@ def test_server_and_worker_run_as_separate_processes(production, tmp_path):
                 )
                 assert response.status_code == 200
                 assert response.json()["item_id"] == item_id
-                assert client.get("/openapi.json").json()["info"]["version"] == "0.3.0-draft"
+                assert client.get("/openapi.json").json()["info"]["version"] == "0.4.0"
             message_id = journal.quality.state(item_id)["outbox"][0]["message_id"]
             result = subprocess.run(
                 [sys.executable, "-m", "app.worker", "--once", "--message-id", message_id],

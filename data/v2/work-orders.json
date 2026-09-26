@@ -1,0 +1,18 @@
+[
+  {
+    "message_id": "order-message-1",
+    "external_order_id": "order-001",
+    "revision": 1,
+    "item_ids": ["assembly-001", "assembly-002", "assembly-003"],
+    "item_type_id": "bracket-demo",
+    "route_id": "route-bracket",
+    "route_version": "1",
+    "control_plan_version": "1",
+    "checkpoints": [
+      {"checkpoint_id": "incoming-surface", "region_id": "face-A", "method_version": "emulator-1", "repeat_after_rework": true},
+      {"checkpoint_id": "after-machining", "region_id": "face-A", "method_version": "emulator-1", "repeat_after_rework": true},
+      {"checkpoint_id": "final-surface", "region_id": "face-A", "method_version": "emulator-1", "repeat_after_rework": true}
+    ],
+    "components": {"assembly-001": ["bracket-001", "insert-001"], "assembly-002": ["bracket-002", "insert-002"], "assembly-003": ["bracket-003", "insert-003"]}
+  }
+]

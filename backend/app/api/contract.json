@@ -113,6 +113,7 @@
           "route_version": {"$ref": "#/components/schemas/Id"},
           "route_id": {"$ref": "#/components/schemas/NullableId"},
           "control_plan_version": {"$ref": "#/components/schemas/NullableId"},
+          "erp_result_profile": {"enum": ["draft-p3", "dp01-0.4"]},
           "assembly_version": {"$ref": "#/components/schemas/Id"},
           "mapping_version": {"$ref": "#/components/schemas/Id"},
           "external_system": {"$ref": "#/components/schemas/Id"},

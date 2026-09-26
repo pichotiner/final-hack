@@ -8,6 +8,7 @@
 # Dependencies and generated runtime/build artifacts.
 node_modules/
 .venv/
+.venv-role2/
 venv/
 __pycache__/
 *.py[cod]
@@ -18,6 +19,11 @@ __pycache__/
 dist/
 build/
 coverage/
+*.tsbuildinfo
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
 .coverage
 htmlcov/
 *.log
