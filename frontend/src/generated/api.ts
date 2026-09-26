@@ -4,6 +4,73 @@
  */
 
 export interface paths {
+    "/api/v2/imports/work-orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Integrator imports an ERP snapshot; planned components do not establish actual installation. */
+        post: operations["importWorkOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/composition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Explicit owner assertion, not proof of physical truth. Current conflicts create unknown coverage; historical cycles terminate with visited. */
+        post: operations["assertComposition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/events/{record_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getOriginalEvent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/integrations/flush": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Integrator delivers committed immutable messages; external HTTP is outside the core transaction. */
+        post: operations["flushOutbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/work-orders": {
         parameters: {
             query?: never;
@@ -278,6 +345,19 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        CompositionSnapshot: {
+            snapshot_id: components["schemas"]["Id"];
+            owner_id: components["schemas"]["Id"];
+            proof_id: components["schemas"]["NullableId"];
+            items: components["schemas"]["Id"][];
+            memberships: {
+                assertion_id: components["schemas"]["Id"];
+                component_id: components["schemas"]["Id"];
+                assembly_id: components["schemas"]["Id"];
+                /** @enum {string} */
+                state: "current" | "historical" | "superseded";
+            }[];
+        };
         WorkOrder: {
             id: components["schemas"]["Id"];
             external_system: components["schemas"]["Id"];
@@ -648,6 +728,11 @@ export interface components {
             record_id: components["schemas"]["Id"];
             source_id: components["schemas"]["Id"];
             event_id: components["schemas"]["Id"];
+            content_digest: string;
+            /** Format: date-time */
+            occurred_at: string;
+            /** Format: date-time */
+            received_at: string;
             /** @enum {string} */
             role: "used" | "contradictory" | "excluded";
             reason: string | null;
@@ -673,6 +758,21 @@ export interface components {
             /** @description Named work_order, route, design/factual composition, mapping, links, rules, processor, analyzer/recipe versions; unknown explicitly null. */
             pinned_versions: {
                 [key: string]: string | null;
+            };
+            analyzer_versions: {
+                record_id: components["schemas"]["Id"];
+                version: components["schemas"]["NullableId"];
+            }[];
+            contradictions: {
+                checkpoint_id: components["schemas"]["Id"];
+                record_ids: components["schemas"]["Id"][];
+                reason: string;
+            }[];
+            excluded_inputs: components["schemas"]["BasisInput"][];
+            previous_decisions: components["schemas"]["Decision"][];
+            /** @description Versioned policy and membership paths. Not physical causal paths. */
+            impact: {
+                [key: string]: unknown;
             };
             decision_ids: components["schemas"]["Id"][];
             completeness: components["schemas"]["CheckpointAssessment"][];
@@ -756,6 +856,25 @@ export interface components {
                 blockers?: string[];
             };
         };
+        "schemas-WorkOrder": {
+            message_id: components["schemas"]["Id"];
+            external_order_id: components["schemas"]["Id"];
+            revision: number;
+            item_ids: components["schemas"]["Id"][];
+            item_type_id: components["schemas"]["Id"];
+            route_id: components["schemas"]["Id"];
+            route_version: components["schemas"]["Id"];
+            control_plan_version: components["schemas"]["Id"];
+            checkpoints: {
+                checkpoint_id: components["schemas"]["Id"];
+                region_id: components["schemas"]["Id"];
+                method_version: components["schemas"]["Id"];
+                repeat_after_rework: boolean;
+            }[];
+            components: {
+                [key: string]: components["schemas"]["Id"][];
+            };
+        };
     };
     responses: {
         /** @description Structured public error; no successful effects on rejection */
@@ -780,6 +899,98 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    importWorkOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["schemas-WorkOrder"];
+            };
+        };
+        responses: {
+            /** @description Accepted import or exact repeat */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
+    assertComposition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompositionSnapshot"];
+            };
+        };
+        responses: {
+            /** @description Saved snapshot with visible conflicts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
+    getOriginalEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                record_id: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authorized decrypted original event */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceEvent"];
+                };
+            };
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
+    flushOutbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Number of acknowledged messages */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
     listWorkOrders: {
         parameters: {
             query?: {

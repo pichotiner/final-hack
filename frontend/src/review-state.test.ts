@@ -8,8 +8,10 @@ const pin: Pinned = {
     blockers: ["open"], completeness: [], nonconformities: [], decisions: [] },
   basis: { basis_id: "b5", item_id: "a", target_id: null, context_revision: 5,
     control_cycle_id: "c1", created_at: "2026-09-26T10:00:00Z",
-    inputs: [{ record_id: "r1", source_id: "s1", event_id: "e1", role: "used", reason: null }],
-    pinned_versions: { route: "v1" }, decision_ids: [], completeness: [],
+    inputs: [{ record_id: "r1", source_id: "s1", event_id: "e1", content_digest: "a".repeat(64),
+      occurred_at: "2026-09-26T09:00:00Z", received_at: "2026-09-26T10:00:00Z", role: "used", reason: null }],
+    pinned_versions: { route: "v1" }, analyzer_versions: [], contradictions: [],
+    excluded_inputs: [], previous_decisions: [], impact: {}, decision_ids: [], completeness: [],
     blockers: ["open"], unknowns: [], media_available: false },
 };
 
@@ -41,7 +43,9 @@ describe("Pinned review and uncertain delivery", () => {
   it("diff includes added evidence, role changes and pinned version changes", () => {
     const next = { ...pin.basis, basis_id: "b6", context_revision: 6,
       inputs: [ { ...pin.basis.inputs[0], role: "contradictory" as const },
-        { record_id: "late", source_id: "s1", event_id: "e2", role: "used" as const, reason: null } ],
+        { record_id: "late", source_id: "s1", event_id: "e2", content_digest: "b".repeat(64),
+          occurred_at: "2026-09-26T09:01:00Z", received_at: "2026-09-26T10:01:00Z",
+          role: "used" as const, reason: null } ],
       pinned_versions: { route: "v2" } };
     const diff = basisDiff(pin.basis, next);
     expect(diff.added.map(x => x.record_id)).toEqual(["late"]);

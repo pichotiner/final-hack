@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: EFQA demonstrator — DP-01 transport
-  version: 0.3.0
+  version: 0.4.0
   description: >-
     Role 2 transport proposal for DP-01. Not a running core API or a vendor ERP API.
     Semantic authority is docs/architecture/decision-protocol.md. Source envelope remains 1.0.
@@ -11,6 +11,40 @@ servers:
 security:
   - bearerAuth: []
 paths:
+  /api/v2/imports/work-orders:
+    post:
+      operationId: importWorkOrder
+      description: Integrator imports an ERP snapshot; planned components do not establish actual installation.
+      requestBody: {required: true, content: {application/json: {schema: {$ref: './external-openapi.yaml#/components/schemas/WorkOrder'}}}}
+      responses:
+        '200': {description: Accepted import or exact repeat}
+        '409': {$ref: '#/components/responses/Error'}
+        '403': {$ref: '#/components/responses/Error'}
+  /api/v2/composition:
+    post:
+      operationId: assertComposition
+      description: Explicit owner assertion, not proof of physical truth. Current conflicts create unknown coverage; historical cycles terminate with visited.
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/CompositionSnapshot'}}}}
+      responses:
+        '200': {description: Saved snapshot with visible conflicts}
+        '403': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
+  /api/v2/events/{record_id}:
+    get:
+      operationId: getOriginalEvent
+      parameters: [{name: record_id, in: path, required: true, schema: {$ref: '#/components/schemas/Id'}}]
+      responses:
+        '200': {description: Authorized decrypted original event, content: {application/json: {schema: {$ref: '#/components/schemas/SourceEvent'}}}}
+        '404': {$ref: '#/components/responses/Error'}
+        '403': {$ref: '#/components/responses/Error'}
+  /api/v2/integrations/flush:
+    post:
+      operationId: flushOutbox
+      description: Integrator delivers committed immutable messages; external HTTP is outside the core transaction.
+      responses:
+        '200': {description: Number of acknowledged messages}
+        '403': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
   /api/v2/work-orders:
     get:
       operationId: listWorkOrders
@@ -144,6 +178,26 @@ components:
   responses:
     Error: {description: Structured public error; no successful effects on rejection, content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   schemas:
+    CompositionSnapshot:
+      type: object
+      additionalProperties: false
+      required: [snapshot_id, owner_id, items, memberships, proof_id]
+      properties:
+        snapshot_id: {$ref: '#/components/schemas/Id'}
+        owner_id: {$ref: '#/components/schemas/Id'}
+        proof_id: {$ref: '#/components/schemas/NullableId'}
+        items: {type: array, minItems: 1, uniqueItems: true, items: {$ref: '#/components/schemas/Id'}}
+        memberships:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [assertion_id, component_id, assembly_id, state]
+            properties:
+              assertion_id: {$ref: '#/components/schemas/Id'}
+              component_id: {$ref: '#/components/schemas/Id'}
+              assembly_id: {$ref: '#/components/schemas/Id'}
+              state: {type: string, enum: [current, historical, superseded]}
     WorkOrder:
       type: object
       required: [id, external_system, external_order_id, revision, route_id, route_version, control_plan_version, item_ids]
@@ -422,11 +476,14 @@ components:
         supersedes_id: {$ref: '#/components/schemas/NullableId'}
     BasisInput:
       type: object
-      required: [record_id, source_id, event_id, role, reason]
+      required: [record_id, source_id, event_id, content_digest, occurred_at, received_at, role, reason]
       properties:
         record_id: {$ref: '#/components/schemas/Id'}
         source_id: {$ref: '#/components/schemas/Id'}
         event_id: {$ref: '#/components/schemas/Id'}
+        content_digest: {type: string, pattern: '^[a-f0-9]{64}$'}
+        occurred_at: {type: string, format: date-time}
+        received_at: {type: string, format: date-time}
         role: {type: string, enum: [used, contradictory, excluded]}
         reason: {type: [string, 'null']}
     CheckpointAssessment:
@@ -441,7 +498,7 @@ components:
         issues: {type: array, items: {type: string}}
     Basis:
       type: object
-      required: [basis_id, item_id, target_id, context_revision, control_cycle_id, created_at, inputs, pinned_versions, decision_ids, completeness, blockers, unknowns, media_available]
+      required: [basis_id, item_id, target_id, context_revision, control_cycle_id, created_at, inputs, pinned_versions, analyzer_versions, contradictions, excluded_inputs, previous_decisions, impact, decision_ids, completeness, blockers, unknowns, media_available]
       properties:
         basis_id: {$ref: '#/components/schemas/Id'}
         item_id: {$ref: '#/components/schemas/Id'}
@@ -451,6 +508,26 @@ components:
         created_at: {type: string, format: date-time}
         inputs: {type: array, items: {$ref: '#/components/schemas/BasisInput'}}
         pinned_versions: {type: object, additionalProperties: {type: [string, 'null']}, description: 'Named work_order, route, design/factual composition, mapping, links, rules, processor, analyzer/recipe versions; unknown explicitly null.'}
+        analyzer_versions:
+          type: array
+          items:
+            type: object
+            required: [record_id, version]
+            properties:
+              record_id: {$ref: '#/components/schemas/Id'}
+              version: {$ref: '#/components/schemas/NullableId'}
+        contradictions:
+          type: array
+          items:
+            type: object
+            required: [checkpoint_id, record_ids, reason]
+            properties:
+              checkpoint_id: {$ref: '#/components/schemas/Id'}
+              record_ids: {type: array, minItems: 2, items: {$ref: '#/components/schemas/Id'}}
+              reason: {type: string, minLength: 1}
+        excluded_inputs: {type: array, items: {$ref: '#/components/schemas/BasisInput'}}
+        previous_decisions: {type: array, items: {$ref: '#/components/schemas/Decision'}}
+        impact: {type: object, additionalProperties: true, description: 'Versioned policy and membership paths. Not physical causal paths.'}
         decision_ids: {type: array, items: {$ref: '#/components/schemas/Id'}}
         completeness: {type: array, items: {$ref: '#/components/schemas/CheckpointAssessment'}}
         blockers: {type: array, items: {type: string}}

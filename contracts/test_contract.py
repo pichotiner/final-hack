@@ -18,7 +18,7 @@ def test_specs_and_versions():
     for external in (False, True):
         doc = document(external)
         validate_openapi(doc)
-        assert doc["info"]["version"] == "0.3.0"
+        assert doc["info"]["version"] == ("0.3.0" if external else "0.4.0")
         assert all("/v2/" in path for path in doc["paths"])
 
 

@@ -1,0 +1,40 @@
+name: Unified evidence chain
+on: [push, pull_request]
+jobs:
+  integrated:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.9
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: efqa_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d efqa_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://postgres@localhost:5432/efqa_test
+      PYTHONPATH: backend:.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '24.12.0', cache: npm, cache-dependency-path: frontend/package-lock.json}
+      - name: Integrated HTTP + PostgreSQL + external ERP receiver
+        run: |
+          python -m pip install -r backend/requirements.unified.lock.txt
+          python -m pytest backend/tests contracts emulator -q
+          python -m contracts.generate --check
+          python -m contracts.compatibility contracts/openapi.yaml contracts/compat-baseline.json
+          python -m contracts.compatibility contracts/external-openapi.yaml contracts/external-compat-baseline.json
+          python -m ruff check backend/app backend/scripts/impact_experiment.py backend/tests/integration/test_unified_chain.py
+          python -m ruff format --check backend/app backend/scripts/impact_experiment.py backend/tests/integration/test_unified_chain.py
+      - name: Client follows generated v0.4 contract
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run check:generated
+          npm test
+          npm run build
