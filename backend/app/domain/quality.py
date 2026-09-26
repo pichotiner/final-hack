@@ -12,7 +12,7 @@ from __future__ import annotations
 import copy
 import hashlib
 from collections.abc import Callable, Iterable
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
 from threading import RLock
 from uuid import uuid4
@@ -108,7 +108,7 @@ class Basis:
     evidence_record_ids: tuple[str, ...] = ()
     decision_ids: tuple[str, ...] = ()
     analysis_snapshot: dict = field(default_factory=dict)
-    processor_version: str = "quality-v2"
+    processor_version: str = "quality-v3"
     control_assessments: tuple[dict, ...] = ()
 
 
@@ -150,6 +150,7 @@ class Decision:
     operator_id: str | None = None
     action_record_id: str | None = None
     control_record_ids: tuple[str, ...] = ()
+    control_binding: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -192,6 +193,8 @@ class _Item:
     cycles: dict[str, dict] = field(default_factory=dict)
     evidence_record_ids: list[str] = field(default_factory=list)
     scope_constraints: dict[str, str] = field(default_factory=dict)
+    observation_bindings: dict[str, dict] = field(default_factory=dict)
+    control_replacements: dict[str, str] = field(default_factory=dict)
 
 
 class QualityWorkflow:
@@ -446,21 +449,6 @@ class QualityWorkflow:
                     "observation_id": saved.observation_id,
                     "context_revision": item.context_revision,
                 }
-            if replaces_observation_id is not None:
-                replaced = item.observations.get(replaces_observation_id)
-                if (
-                    replaced is None
-                    or cycle_id is None
-                    or replaced.cycle_id != cycle_id
-                    or replaced.checkpoint_id != checkpoint_id
-                    or replaced.effective_result != "not_assessable"
-                    or replaced.component_id != component_id
-                    or replaced.region_id != region_id
-                ):
-                    raise InvalidTransition(
-                        "Replacement must refer to a not-assessable control in the same "
-                        "checkpoint and cycle."
-                    )
             observation = Observation(
                 observation_id=observation_id,
                 item_id=item_id,
@@ -487,6 +475,12 @@ class QualityWorkflow:
                 control_session_id=control_session_id,
                 defect_index=defect_index,
             )
+            if replaces_observation_id is not None:
+                replaced = item.observations.get(replaces_observation_id)
+                if replaced is None or not self._valid_repeat(item, replaced, observation):
+                    raise InvalidTransition(
+                        "Replacement must be a later, assessable comparable control."
+                    )
             item.observations[observation_id] = observation
             if item.dispositions and item.dispositions[-1].action == "released":
                 item.disposition_review_required = True
@@ -515,6 +509,184 @@ class QualityWorkflow:
                 "context_revision": item.context_revision,
             }
 
+    @staticmethod
+    def _effective_observation(item, observation):
+        binding = item.observation_bindings.get(observation.observation_id)
+        return (
+            replace(
+                observation,
+                **{
+                    key: binding[key]
+                    for key in ("cycle_id", "control_session_id", "operation_run_id")
+                },
+            )
+            if binding
+            else observation
+        )
+
+    @classmethod
+    def _effective_observations(cls, item):
+        return [cls._effective_observation(item, o) for o in item.observations.values()]
+
+    @classmethod
+    def _valid_repeat(cls, item, old, new):
+        old = cls._effective_observation(item, old)
+        new = cls._effective_observation(item, new)
+        fields = (
+            "cycle_id",
+            "checkpoint_id",
+            "component_id",
+            "region_id",
+            "source_id",
+            "analyzer_version",
+            "operation_run_id",
+            "inspection_phase",
+            "control_session_id",
+        )
+        return (
+            old.effective_result == "not_assessable"
+            and old.cycle_id is not None
+            and old.observation_id not in item.control_replacements
+            and not any(
+                o.replaces_observation_id == old.observation_id for o in item.observations.values()
+            )
+            and old.occurred_at is not None
+            and new.occurred_at is not None
+            and new.occurred_at > old.occurred_at
+            and cls._usable(item, new)
+            and all(getattr(old, key) == getattr(new, key) for key in fields)
+        )
+
+    def recover_control(
+        self,
+        item_id,
+        *,
+        action,
+        record_id,
+        actor_id,
+        reason,
+        expected_revision,
+        expected_basis_id,
+        idempotency_key,
+        replacement_record_id=None,
+        control_cycle_id=None,
+    ):
+        """Append a reviewed interpretation; never rewrite source observations."""
+        item = self._item(item_id)
+        payload = dict(
+            action=action,
+            record_id=record_id,
+            actor_id=actor_id,
+            reason=reason,
+            expected_revision=expected_revision,
+            expected_basis_id=expected_basis_id,
+            replacement_record_id=replacement_record_id,
+            control_cycle_id=control_cycle_id,
+        )
+
+        def apply():
+            self._check_context(item, expected_revision, expected_basis_id)
+            observations = [
+                o for o in self._effective_observations(item) if o.record_id == record_id
+            ]
+            if (
+                not observations
+                or record_id not in item.bases[expected_basis_id].evidence_record_ids
+            ):
+                raise InvalidTransition(
+                    "Control record must belong to the reviewed item and basis."
+                )
+            binding = {}
+            decision_id = str(uuid4())
+            records = [record_id]
+            if action == "bind_control":
+                if replacement_record_id is not None or control_cycle_id not in item.cycles:
+                    raise InvalidTransition("Select a registered cycle, without a replacement.")
+                plan = item.cycles[control_cycle_id]
+                for observation in observations:
+                    if (
+                        observation.cycle_id is not None
+                        or observation.checkpoint_id not in plan["control_sessions"]
+                    ):
+                        raise InvalidTransition("Only an unresolved control can receive a binding.")
+                    binding = {
+                        "cycle_id": control_cycle_id,
+                        "control_session_id": plan["control_sessions"][observation.checkpoint_id],
+                        "operation_run_id": plan["checkpoint_operation_run_ids"][
+                            observation.checkpoint_id
+                        ],
+                    }
+                    item.observation_bindings[observation.observation_id] = {
+                        **binding,
+                        "decision_id": decision_id,
+                    }
+            elif action == "replace_control":
+                if control_cycle_id is not None or replacement_record_id == record_id:
+                    raise InvalidTransition("Replacement requires a different control record.")
+                candidates = [
+                    o
+                    for o in self._effective_observations(item)
+                    if o.record_id == replacement_record_id
+                ]
+                if (
+                    not candidates
+                    or replacement_record_id
+                    not in item.bases[expected_basis_id].evidence_record_ids
+                ):
+                    raise InvalidTransition("Replacement must belong to the reviewed basis.")
+                if any(not self._usable(item, o) for o in candidates):
+                    raise InvalidTransition("Replacement control must be assessable.")
+                for old in observations:
+                    matches = [o for o in candidates if self._valid_repeat(item, old, o)]
+                    if not matches:
+                        raise InvalidTransition(
+                            "Repeat must be later, comparable and replace a poor control."
+                        )
+                    item.control_replacements[old.observation_id] = matches[0].observation_id
+                records.append(replacement_record_id)
+            else:
+                raise InvalidTransition("Unsupported control recovery action.")
+            item.context_revision += 1
+            decision = Decision(
+                decision_id,
+                "control_recovery",
+                item_id,
+                action,
+                reason,
+                actor_id,
+                expected_basis_id,
+                expected_revision,
+                item.context_revision,
+                None,
+                self.clock(),
+                observation_ids=tuple(o.observation_id for o in observations),
+                control_record_ids=tuple(records),
+                control_binding=binding,
+            )
+            item.decisions.append(decision)
+            for nc in item.nonconformities.values():
+                if nc.decision_ids and any(
+                    self._candidate_key(o) == nc.candidate_key for o in observations
+                ):
+                    nc.review_required = True
+            item.review_required = any(nc.review_required for nc in item.nonconformities.values())
+            if item.dispositions:
+                item.disposition_review_required = True
+            self._emit(item)
+            return self._decision_view(decision)
+
+        return self._command(item_id, "control_recovery", item_id, idempotency_key, payload, apply)
+
+    def circumstances(self, item):
+        from app.domain.analysis import circumstances
+
+        return circumstances(
+            item,
+            self._effective_observations(item),
+            lambda o: self._usable(item, o),
+            self._candidate_key,
+        )
+
     def create_basis(self, item_id: str, target_id: str | None = None) -> dict:
         item = self._item(item_id)
         with self._lock:
@@ -541,6 +713,9 @@ class QualityWorkflow:
                     "nonconformities": [self._nc_view(n) for n in item.nonconformities.values()],
                     "observations": [self._observation_view(o) for o in item.observations.values()],
                     "scope_constraints": copy.deepcopy(item.scope_constraints),
+                    "observation_bindings": copy.deepcopy(item.observation_bindings),
+                    "control_replacements": copy.deepcopy(item.control_replacements),
+                    "circumstances": self.circumstances(item),
                     "kpi": self._kpi(item),
                 },
                 control_assessments=self._control_assessments(item),
@@ -805,6 +980,7 @@ class QualityWorkflow:
                 raise InvalidTransition("Repeat control must belong to the reviewed basis.")
             if not observations or any(value is None for value in observations):
                 raise InvalidTransition("Resolution requires existing repeat-control observations.")
+            observations = [self._effective_observation(item, value) for value in observations]
             if any(
                 value.effective_result != "no_defect_signs" or value.quality != "good"
                 for value in observations
@@ -836,7 +1012,12 @@ class QualityWorkflow:
                 value.cycle_id == item.cycle_id
                 and self._candidate_key(value) == nc.candidate_key
                 and value.defect_type is not None
-                for value in item.observations.values()
+                and value.observation_id not in item.control_replacements
+                and not any(
+                    o.replaces_observation_id == value.observation_id
+                    for o in item.observations.values()
+                )
+                for value in self._effective_observations(item)
             ):
                 raise InvalidTransition("An unresolved defect observation contradicts resolution.")
             item.context_revision += 1
@@ -1051,6 +1232,11 @@ class QualityWorkflow:
                 "release_allowed_now": not blockers,
                 "control_assessments": self._control_assessments(item),
                 "context": asdict(item.context) if item.context else None,
+                "cycles": copy.deepcopy(item.cycles),
+                "production_history": copy.deepcopy(item.production_history),
+                "effective_observations": [
+                    self._observation_view(o) for o in self._effective_observations(item)
+                ],
                 "decisions": [self._decision_view(v) for v in item.decisions],
                 "dispositions": [self._decision_view(v) for v in item.dispositions],
                 "blockers": blockers,
@@ -1070,7 +1256,7 @@ class QualityWorkflow:
                 "disposition": item.dispositions[-1].action if item.dispositions else "pending",
             }
 
-    def analytics(self, item_ids: Iterable[str] | None = None) -> dict:
+    def analytics(self, item_ids: Iterable[str] | None = None, *, since=None, until=None) -> dict:
         """Current counts on one explicit cohort; each item contributes at most one."""
         with self._lock:
             ids = tuple(dict.fromkeys(item_ids if item_ids is not None else self._items))
@@ -1080,7 +1266,14 @@ class QualityWorkflow:
             for item in items:
                 for key, value in self._kpi(item).items():
                     counts[key] += value
-            return {"item_ids": ids, "items": len(items), "kpi": counts}
+            from app.domain.analysis import aggregate
+
+            return {
+                "item_ids": ids,
+                "items": len(items),
+                "kpi": counts,
+                **aggregate(items, since=since, until=until),
+            }
 
     def _command(
         self,
@@ -1262,42 +1455,21 @@ class QualityWorkflow:
                 if operations.get(run, {}).get("status") != "completed":
                     blockers.append(f"operation_incomplete:{run}")
         blockers.extend(f"scope_constraint:{key}" for key in sorted(item.scope_constraints))
-        if any(o.cycle_id is None for o in item.observations.values()):
+        if any(o.cycle_id is None for o in self._effective_observations(item)):
             blockers.append("observation_cycle_unresolved")
         if item.cycle_id != item.initial_cycle_id and not all(
             run in item.rework_operations and item.rework_operations[run].status == "completed"
             for run in item.cycles[item.cycle_id]["operation_run_ids"]
         ):
             blockers.append("rework_operation_missing")
-        for checkpoint in item.required_checkpoints:
-            current = [
-                value
-                for value in item.observations.values()
-                if value.cycle_id == item.cycle_id and value.checkpoint_id == checkpoint
-            ]
-            if not current:
-                blockers.append(f"missing_checkpoint:{checkpoint}")
-            else:
-                effective = {
-                    value.observation_id: value
-                    for value in current
-                    if not any(
-                        successor.replaces_observation_id == value.observation_id
-                        for successor in current
-                    )
-                }
-                if any(not self._usable(item, value) for value in effective.values()):
-                    blockers.append(f"not_assessable:{checkpoint}")
-                results = {
-                    value.effective_result
-                    for value in effective.values()
-                    if not any(
-                        nc.candidate_key == self._candidate_key(value) and nc.status == "rejected"
-                        for nc in item.nonconformities.values()
-                    )
-                }
-                if "no_defect_signs" in results and "defect_signs" in results:
-                    blockers.append(f"disputed_checkpoint:{checkpoint}")
+        for assessment in self._control_assessments(item):
+            prefix = {
+                "missing": "missing_checkpoint",
+                "not_assessable": "not_assessable",
+                "disputed": "disputed_checkpoint",
+            }.get(assessment["assessment_status"])
+            if prefix:
+                blockers.append(f"{prefix}:{assessment['checkpoint_id']}")
         for nc in item.nonconformities.values():
             if nc.status in {"pending_review", "needs_check"}:
                 blockers.append(f"nonconformity:{nc.nonconformity_id}:{nc.status}")
@@ -1315,10 +1487,7 @@ class QualityWorkflow:
         confirmed = [nc for nc in item.nonconformities.values() if nc.status == "confirmed"]
         return {
             "inspected_items": int(
-                any(
-                    observation.cycle_id == item.cycle_id and self._usable(item, observation)
-                    for observation in item.observations.values()
-                )
+                any(self._usable(item, observation) for observation in item.observations.values())
             ),
             "confirmed_nonconforming_items": int(bool(confirmed)),
             "confirmed_defects": len(confirmed),
@@ -1336,17 +1505,40 @@ class QualityWorkflow:
             ),
             "unresolved_cause_defects": sum(nc.cause_status != "established" for nc in confirmed),
             "established_cause_defects": sum(nc.cause_status == "established" for nc in confirmed),
-            "confirmed_operator_errors": sum(
-                nc.cause_status == "established" and nc.cause_category == "operator"
-                for nc in confirmed
+            "confirmed_operator_errors": len(
+                {
+                    d.operation_run_id
+                    for d in item.decisions
+                    if d.decision_id
+                    in {
+                        nc.decision_ids[-1]
+                        for nc in confirmed
+                        if nc.decision_ids
+                        and nc.cause_status == "established"
+                        and nc.cause_category == "operator"
+                    }
+                }
             ),
             "rework_operations": sum(
                 operation.status == "completed" for operation in item.rework_operations.values()
             ),
-            "repeat_controls": sum(
-                observation.cycle_id != item.initial_cycle_id
-                or observation.replaces_observation_id is not None
-                for observation in item.observations.values()
+            "current_cycle_inspected_items": int(
+                any(
+                    o.cycle_id == item.cycle_id and self._usable(item, o)
+                    for o in self._effective_observations(item)
+                )
+            ),
+            "repeat_controls": len(
+                {
+                    observation.record_id or observation.observation_id
+                    for observation in self._effective_observations(item)
+                    if observation.cycle_id is not None
+                    and (
+                        observation.cycle_id != item.initial_cycle_id
+                        or observation.replaces_observation_id is not None
+                        or observation.observation_id in item.control_replacements.values()
+                    )
+                }
             ),
             "blocked_items": int(bool(self._blockers(item))),
             "released_after_reinspection": int(
@@ -1477,23 +1669,34 @@ class QualityWorkflow:
         for requirement in item.context.controls:
             current = [
                 value
-                for value in item.observations.values()
+                for value in cls._effective_observations(item)
                 if value.cycle_id == item.cycle_id
                 and value.checkpoint_id == requirement.checkpoint_id
             ]
             active = [
                 value
                 for value in current
-                if not any(
+                if value.observation_id not in item.control_replacements
+                and not any(
                     successor.replaces_observation_id == value.observation_id
                     for successor in current
                 )
             ]
             usable = [value for value in active if cls._usable(item, value)]
-            results = {value.effective_result for value in usable}
+            rejected = {
+                value.observation_id: nc
+                for value in usable
+                for nc in item.nonconformities.values()
+                if nc.candidate_key == cls._candidate_key(value)
+                and nc.status == "rejected"
+                and not nc.review_required
+            }
+            results = {
+                value.effective_result for value in usable if value.observation_id not in rejected
+            }
             if not current:
                 status = "missing"
-            elif not usable:
+            elif len(usable) != len(active) or not usable:
                 status = "not_assessable"
             elif {"defect_signs", "no_defect_signs"}.issubset(results):
                 status = "disputed"
@@ -1518,6 +1721,7 @@ class QualityWorkflow:
                     .get(requirement.checkpoint_id),
                     "assessment_status": status,
                     "effective_results": sorted(results),
+                    "resolution_decision_ids": [nc.decision_ids[-1] for nc in rejected.values()],
                     "selected_record_ids": [value.record_id for value in usable],
                     "contradicting_record_ids": (
                         [value.record_id for value in usable] if status == "disputed" else []
@@ -1538,7 +1742,7 @@ class QualityWorkflow:
     @staticmethod
     def _exclusion_reasons(item, requirement, value):
         reasons = []
-        if any(
+        if value.observation_id in item.control_replacements or any(
             successor.replaces_observation_id == value.observation_id
             for successor in item.observations.values()
         ):
@@ -1576,6 +1780,7 @@ class QualityWorkflow:
 
     @staticmethod
     def _usable(item: _Item, value: Observation) -> bool:
+        value = QualityWorkflow._effective_observation(item, value)
         if (
             item.context is None
             or value.cycle_id is None
@@ -1728,6 +1933,7 @@ class QualityWorkflow:
                             defect_type=sign.get("type"),
                             source_event_id=document["event_id"],
                             cycle_id=cycle,
+                            replaces_observation_id=payload.get("replaces_observation_id"),
                             source_id=document["source_id"],
                             component_id=sign.get("component_id")
                             or (rule.component_id if rule else None),

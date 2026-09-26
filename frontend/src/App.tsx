@@ -1,9 +1,10 @@
 import { useEffect, useReducer, useRef, useState } from "react";
-import { api, ApiError, request, verifyCommandReceipt, type Basis, type Item, type ReviewCommand, type DispositionCommand, type ResolutionCommand, type CycleCommand } from "./api";
+import { api, ApiError, request, verifyCommandReceipt, type Basis, type Item, type ReviewCommand, type DispositionCommand, type ResolutionCommand, type CycleCommand, type RecoveryCommand, type ScopeCommand } from "./api";
 import { basisDiff, initialState, reviewReducer, type SavedCommand } from "./review-state";
 import { BasisExplanation, SuggestedChecks } from "./BasisExplanation";
+import { AnalyticsPanel } from "./AnalyticsPanel";
 
-const ids = (value: string) => value.split(",").map(x => x.trim()).filter(Boolean);
+const actions: Record<string, string> = { confirm: "Подтвердить дефект", reject: "Отклонить ложный признак", request_check: "Запросить проверку", resolve: "Зафиксировать устранение", reopen: "Открыть дефект повторно", rework: "Назначить доработку", released: "Разрешить выпуск", rejected: "Отклонить изделие", cycle: "Открыть цикл повторного контроля", bind_control: "Исправить привязку контроля", replace_control: "Заменить плохой контроль повторным", scope: "Разрешить ограничение области" };
 
 export default function App() {
   const [token, setToken] = useState("");
@@ -11,17 +12,29 @@ export default function App() {
   const [selected, setSelected] = useState("");
   const [latest, setLatest] = useState<Item | null>(null);
   const [history, setHistory] = useState<Awaited<ReturnType<typeof api.timeline>> | null>(null);
-  const [message, setMessage] = useState("Введите bearer token и загрузите изделия из API. Контракт 0.4.0 / P5.");
+  const [message, setMessage] = useState("Введите bearer token и загрузите изделия из API. Контракт 0.5.0 / P7.");
   const [review, dispatch] = useReducer(reviewReducer, initialState);
   const [reason, setReason] = useState("");
   const [kind, setKind] = useState("confirm");
   const [target, setTarget] = useState("");
   const [run, setRun] = useState("");
   const [previousRun, setPreviousRun] = useState("");
-  const [controlRecords, setControlRecords] = useState("");
+  const [controlRecords, setControlRecords] = useState<string[]>([]);
   const [reworkDecision, setReworkDecision] = useState("");
-  const [sessions, setSessions] = useState("{}");
-  const [bindings, setBindings] = useState("{}");
+  const [plannedRuns, setPlannedRuns] = useState<Record<string, string>>({});
+  const [bindings, setBindings] = useState<Record<string, string | null>>({});
+  const [record, setRecord] = useState("");
+  const [replacement, setReplacement] = useState("");
+  const [bindingCycle, setBindingCycle] = useState("");
+  const [actorId, setActorId] = useState("");
+  const [newToken, setNewToken] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [causeCategory, setCauseCategory] = useState("unknown");
+  const [causeRecords, setCauseRecords] = useState<string[]>([]);
+  const [causeRun, setCauseRun] = useState("");
+  const [causeAction, setCauseAction] = useState("");
+  const [scope, setScope] = useState<Awaited<ReturnType<typeof api.scope>> | null>(null);
+  const [constraint, setConstraint] = useState("");
   const inFlight = useRef(false);
   const reviewRequest = useRef(0);
   const comparisonGeneration = useRef(0);
@@ -29,7 +42,6 @@ export default function App() {
   const [oldBasis, setOldBasis] = useState<Basis | null>(null);
   const [oldBasisId, setOldBasisId] = useState("");
   const [newBasis, setNewBasis] = useState<Basis | null>(null);
-  const [counts, setCounts] = useState<Record<string, number> | null>(null);
   const [lineId, setLineId] = useState("line-1");
   const [orders, setOrders] = useState<Awaited<ReturnType<typeof api.orders>> | null>(null);
   const [line, setLine] = useState<Awaited<ReturnType<typeof api.line>> | null>(null);
@@ -59,7 +71,17 @@ export default function App() {
     }
   }
   async function refresh() {
-    try { setItems((await api.items(token)).items); } catch (e) { error(e); }
+    try { const identity = await api.session(token); setActorId(identity.actor_id); setItems((await api.items(token)).items); } catch (e) { error(e); }
+  }
+  async function reauthenticate() {
+    if (review.phase !== "unknown" || !review.pending?.actorId) return;
+    setAuthBusy(true);
+    try {
+      const identity = await api.session(newToken);
+      if (identity.actor_id !== review.pending.actorId) throw new Error("Нужна та же личность: " + review.pending.actorId);
+      setToken(newToken); setNewToken(""); setActorId(identity.actor_id);
+      setMessage("Доступ восстановлен. Исходное тело и ключ сохранены; повторите команду.");
+    } catch (e) { error(e); } finally { setAuthBusy(false); }
   }
   useEffect(() => {
     if (!selected || !token) return;
@@ -97,6 +119,10 @@ export default function App() {
         throw new Error("Основание не соответствует полученному контексту. Повторите открытие рассмотрения.");
       }
       dispatch({ type: "pin", value: { item, basis, targetId: target || null } });
+      setRun(""); setPreviousRun(""); setControlRecords([]); setRecord(""); setReplacement("");
+      setBindingCycle(item.control_cycle_id); setPlannedRuns({}); setBindings({});
+      setReworkDecision(item.decisions.filter(d => d.action === "rework").at(-1)?.decision_id ?? "");
+      setCauseCategory("unknown"); setCauseRecords([]); setCauseRun(""); setCauseAction(""); setScope(null);
       setLatest(item); setNewBasis(basis);
       setMessage(`Закреплено основание ${basis.basis_id}, ревизия ${basis.context_revision}`);
     } catch (e) { if (requestId === reviewRequest.current) error(e); }
@@ -138,52 +164,70 @@ export default function App() {
     const cardPath = `/api/v2/nonconformities/${encodeURIComponent(pinned.targetId ?? "")}`;
     const itemPath = `/api/v2/items/${encodeURIComponent(pinned.item.item_id)}`;
     let path: string;
-    let body: ReviewCommand | DispositionCommand | ResolutionCommand | CycleCommand;
+    let body: ReviewCommand | DispositionCommand | ResolutionCommand | CycleCommand | RecoveryCommand | ScopeCommand;
     if (["confirm", "reject", "request_check"].includes(kind)) {
       if (!pinned.targetId) return setMessage("Выберите карточку и начните её рассмотрение");
       body = { ...common, decision: kind as ReviewCommand["decision"] }; path = `${cardPath}/decisions`;
+      if (kind === "confirm" && causeCategory !== "unknown") {
+        if (!causeRecords.length) return setMessage("Выберите записи, подтверждающие установленную причину");
+        const operation = pinned.item.operations?.find(o => o.operation_run_id === causeRun);
+        if (causeCategory === "operator" && (!operation?.operator_id || !causeAction)) return setMessage("Выберите операцию с известным оператором и его действие");
+        body.cause = { status: "established", category: causeCategory as "incoming" | "equipment" | "operator" | "other", record_ids: causeRecords, limitations: [],
+          ...(causeCategory === "operator" ? { operation_run_id: causeRun, operator_id: operation!.operator_id!, action_record_id: causeAction } : {}) };
+      }
     } else if (kind === "resolve" || kind === "reopen") {
       if (!pinned.targetId) return setMessage("Выберите карточку");
       body = kind === "reopen" ? { ...common, action: "reopen" } : {
         ...common, action: "resolve", rework_operation_run_id: run,
-        previous_operation_run_id: previousRun, control_record_ids: ids(controlRecords),
+        previous_operation_run_id: previousRun, control_record_ids: controlRecords,
       };
-      if (kind === "resolve" && (!run || !previousRun || !ids(controlRecords).length)) return setMessage("Нужны run доработки, предыдущий run и записи повторного контроля");
+      if (kind === "resolve" && (!run || !previousRun || !controlRecords.length)) return setMessage("Выберите завершённую доработку и записи повторного контроля");
       path = `${cardPath}/resolutions`;
     } else {
       if (pinned.targetId !== null) return setMessage("Откройте рассмотрение изделия, не карточки");
-      if (kind === "cycle") {
-        if (!reworkDecision || !ids(run).length) return setMessage("Нужны решение rework и запланированные run ID");
-        let control_sessions: Record<string, string>;
-        let checkpoint_operation_run_ids: Record<string, string | null>;
-        try {
-          control_sessions = JSON.parse(sessions);
-          checkpoint_operation_run_ids = JSON.parse(bindings);
-          if (!control_sessions || !checkpoint_operation_run_ids || Array.isArray(control_sessions) || Array.isArray(checkpoint_operation_run_ids)) throw new Error();
-        } catch { return setMessage("Укажите JSON-объекты привязок каждой контрольной точки"); }
-        body = { ...common, rework_disposition_id: reworkDecision, planned_operation_run_ids: ids(run), control_sessions, checkpoint_operation_run_ids };
+      if (kind === "bind_control" || kind === "replace_control") {
+        if (!record || (kind === "bind_control" ? !bindingCycle : !replacement)) return setMessage("Выберите контроль и его исправление");
+        body = { ...common, action: kind, record_id: record, ...(kind === "bind_control" ? { control_cycle_id: bindingCycle } : { replacement_record_id: replacement }) };
+        path = `${itemPath}/control-recoveries`;
+      } else if (kind === "scope") {
+        if (!scope || !constraint || scope.bases[pinned.item.item_id]?.basis_id !== pinned.basis.basis_id) return setMessage("Обновите ограничения области по закреплённому рассмотрению");
+        body = { reason: common.reason, idempotency_key: common.idempotency_key, bases: scope.bases };
+        path = `/api/v2/scope-constraints/${encodeURIComponent(constraint)}/resolutions`;
+      } else if (kind === "cycle") {
+        if (!reworkDecision || !Object.keys(plannedRuns).length) return setMessage("Выберите решение о доработке и повторяемые операции");
+        const control_sessions = Object.fromEntries(pinned.item.completeness.map(cp => [cp.checkpoint_id, crypto.randomUUID()]));
+        const checkpoint_operation_run_ids: Record<string, string | null> = {};
+        for (const cp of pinned.item.completeness) {
+          const bound = cp.operation_run_id === null ? null : bindings[cp.checkpoint_id];
+          if (bound === undefined || bound !== null && !Object.values(plannedRuns).includes(bound)) return setMessage("Выберите планируемую операцию для каждой точки контроля");
+          checkpoint_operation_run_ids[cp.checkpoint_id] = bound;
+        }
+        body = { ...common, rework_disposition_id: reworkDecision, planned_operation_run_ids: Object.values(plannedRuns), control_sessions, checkpoint_operation_run_ids };
         path = `${itemPath}/control-cycles`;
       } else {
         body = { ...common, disposition: kind as DispositionCommand["disposition"] };
         path = `${itemPath}/dispositions`;
       }
     }
-    void send({ path, body: JSON.stringify(body) });
+    if (!actorId) return setMessage("Загрузите изделия, чтобы проверить вашу личность");
+    void send({ path, body: JSON.stringify(body), actorId });
   }
 
   const displayed = pinned?.item ?? latest;
   const diff = oldBasis && newBasis && oldBasis.item_id === newBasis.item_id && oldBasis.target_id === newBasis.target_id
     && oldBasis.context_revision <= newBasis.context_revision ? basisDiff(oldBasis, newBasis) : null;
+  const records = [...new Map((pinned?.item.observations ?? []).filter(o => o.record_id).map(o => [o.record_id!, o])).values()];
+  const recordLabel = (o: typeof records[number]) => `${o.checkpoint_id} · ${o.occurred_at ?? "время неизвестно"} · ${o.effective_result} · ${o.record_id}`;
   return <main>
     <header><h1>EFQA · основания решения</h1><p>DP-01 / API v2 · работа с готовыми наблюдениями, отдельное решение ОТК</p></header>
-    <section><label>Bearer token (только память вкладки)<input type="password" value={token} disabled={locked} onChange={e => { setToken(e.target.value); setSelected(""); setLatest(null); setItems([]); setOrders(null); setLine(null); setDeliveryToken(""); setDeliveries(null); setCounts(null); clearReview(); }} /></label>
+    <section><label>Bearer token (только память вкладки)<input type="password" value={token} disabled={locked} onChange={e => { setToken(e.target.value); setActorId(""); setSelected(""); setLatest(null); setItems([]); setOrders(null); setLine(null); setDeliveryToken(""); setDeliveries(null); clearReview(); }} /></label>
       <button disabled={!token || locked} onClick={() => void refresh()}>Загрузить изделия</button>
       <button disabled={!token} onClick={() => api.orders(token).then(setOrders).catch(error)}>Задания ERP</button>
       <label>Изделие<select value={selected} disabled={locked} onChange={e => { setSelected(e.target.value); setLatest(null); setHistory(null); setTarget(""); setOldBasis(null); setNewBasis(null); clearReview(); }}><option value="">Выбрать</option>{items.map(x => <option key={x.item_id}>{x.item_id}</option>)}</select></label>
-      <button disabled={!token} onClick={() => api.analytics(token).then(x => setCounts(x.counts)).catch(error)}>KPI сервера</button>
-      {counts && <pre>{JSON.stringify(counts, null, 2)}</pre>}
+      {review.phase === "unknown" && <fieldset><legend>Восстановление доступа для {review.pending?.actorId}</legend><label>Новый токен той же личности<input type="password" value={newToken} disabled={authBusy} onChange={e => setNewToken(e.target.value)} /></label><button disabled={!newToken || authBusy} onClick={() => void reauthenticate()}>Восстановить доступ, сохранив команду</button></fieldset>}
       {orders && <div><h2>Полученные задания ERP — план, не факт выполнения</h2><table aria-label="Задания ERP"><thead><tr><th>Задание / revision</th><th>Маршрут</th><th>Экземпляры</th></tr></thead><tbody>{orders.items.map(order => <tr key={order.id}><td>{order.external_order_id} / {order.revision}</td><td>{order.route_id}@{order.route_version}</td><td>{order.item_ids.length}</td></tr>)}</tbody></table><details><summary>Профиль и полный вход ERP</summary><pre>{JSON.stringify(orders, null, 2)}</pre></details></div>}
     </section>
+    <AnalyticsPanel key={actorId} token={token} items={items} />
     <p role="status" className="message">{message}</p>
     <section><h2>Линия и доставка результата</h2>
       <label>Номер линии<input value={lineId} onChange={e => { setLineId(e.target.value); setLine(null); }} /></label>
@@ -213,20 +257,30 @@ export default function App() {
           <table><thead><tr><th>Record / признак</th><th>Компонент / область</th><th>Метод</th><th>Результат контроля</th></tr></thead><tbody>{pinned.basis.analysis_snapshot.observations.map(obs => <tr key={obs.observation_id}><td>{obs.record_id} / {obs.defect_index ?? "контроль без признака"}</td><td>{obs.component_id ?? "неизвестно"} / {obs.region_id ?? "неизвестно"}</td><td>{obs.analyzer_version ?? "неизвестно"}</td><td>{obs.result} → {obs.effective_result}</td></tr>)}</tbody></table>
           <details><summary>Полное сохранённое основание B</summary><pre>{JSON.stringify(pinned.basis, null, 2)}</pre></details>
           <SuggestedChecks basis={pinned.basis} />
-          <label>Действие<select value={kind} disabled={locked} onChange={e => setKind(e.target.value)}>{["confirm", "reject", "request_check", "resolve", "reopen", "rework", "released", "rejected", "cycle"].map(x => <option key={x}>{x}</option>)}</select></label>
+          {(pinned.basis.analysis_snapshot.circumstances ?? []).filter(c => !pinned.targetId || c.nonconformity_id === pinned.targetId).map(c => <article key={c.nonconformity_id}><h3>Разбор обстоятельств дефекта</h3><p>Сопоставление: компонент {c.comparison?.component_id ?? "неизвестен"}, область {c.comparison?.region_id ?? "неизвестна"}, метод {c.comparison?.method_version ?? "неизвестен"}.</p><p>До: {c.before_record_id ?? "нет сопоставимого контроля"}; после: {c.after_record_id ?? "нет пригодного осмотра"}.</p><p>Операции интервала: {c.operation_run_ids.join(", ") || "не установлены"}</p><ul>{c.alternatives.map((a, i) => <li key={i}>{a.explanation} Основания: {a.record_ids.join(", ") || "нет"}</li>)}</ul><ul>{c.limitations.map(l => <li key={l}>{l}</li>)}</ul>{c.related_events.map(e => <p key={e.record_id}>{e.occurred_at} · {e.event_type} · {e.equipment_id ?? e.operator_id} · запись {e.record_id}</p>)}</article>)}
+          <label>Действие<select value={kind} disabled={locked} onChange={e => setKind(e.target.value)}>{Object.entries(actions).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
           <label>Причина<textarea value={reason} disabled={locked} onChange={e => setReason(e.target.value)} /></label>
-          {(kind === "resolve" || kind === "cycle") && <label>Run ID доработки / планируемые run через запятую<input value={run} disabled={locked} onChange={e => setRun(e.target.value)} /></label>}
-          {kind === "resolve" && <><label>Предыдущий run<input value={previousRun} disabled={locked} onChange={e => setPreviousRun(e.target.value)} /></label><label>Raw Record ID повторного контроля<input value={controlRecords} disabled={locked} onChange={e => setControlRecords(e.target.value)} /></label></>}
-          {kind === "cycle" && <><label>ID решения rework<input value={reworkDecision} disabled={locked} onChange={e => setReworkDecision(e.target.value)} /></label>
-            <label>Новые сессии: JSON checkpoint → session<textarea value={sessions} disabled={locked} onChange={e => setSessions(e.target.value)} /></label>
-            <label>Операции: JSON checkpoint → run (incoming: null)<textarea value={bindings} disabled={locked} onChange={e => setBindings(e.target.value)} /></label></>}
+          {kind === "confirm" && <><label>Установленная причина<select value={causeCategory} disabled={locked} onChange={e => setCauseCategory(e.target.value)}><option value="unknown">Не установлена</option><option value="incoming">Входной дефект</option><option value="equipment">Оборудование</option><option value="operator">Подтверждённая ошибка оператора</option><option value="other">Другая</option></select></label>
+            {causeCategory !== "unknown" && <label>Основания установленной причины<select multiple value={causeRecords} disabled={locked} onChange={e => setCauseRecords(Array.from(e.target.selectedOptions, o => o.value))}>{pinned.basis.inputs.map(e => <option key={e.record_id} value={e.record_id}>{e.occurred_at} · {pinned.item.timeline?.find(t => t.record_id === e.record_id)?.event_type ?? e.event_id} · {e.record_id}</option>)}</select></label>}
+            {causeCategory === "operator" && <><label>Операция и оператор<select value={causeRun} disabled={locked} onChange={e => { setCauseRun(e.target.value); setCauseAction(""); }}><option value="">Выбрать</option>{pinned.item.operations?.filter(o => o.operator_id).map(o => <option key={o.operation_run_id} value={o.operation_run_id}>{o.operation_type_id} · {o.operator_id} · {o.operation_run_id}</option>)}</select></label><label>Подтверждающее действие<select value={causeAction} disabled={locked} onChange={e => { setCauseAction(e.target.value); setCauseRecords([...new Set([...causeRecords, e.target.value])]); }}><option value="">Выбрать</option>{pinned.item.timeline?.filter(e => e.event_type === "operator_action" && e.operation_run_id === causeRun).map(e => <option key={e.record_id} value={e.record_id}>{e.occurred_at} · {e.operator_id} · {e.record_id}</option>)}</select></label></>}
+          </>}
+          {kind === "resolve" && <><label>Завершённая доработка<select value={run} disabled={locked} onChange={e => { setRun(e.target.value); setPreviousRun(pinned.item.operations?.find(o => o.operation_run_id === e.target.value)?.previous_operation_run_id ?? ""); setControlRecords([]); }}><option value="">Выбрать</option>{pinned.item.operations?.filter(o => o.previous_operation_run_id && o.status === "completed").map(o => <option key={o.operation_run_id} value={o.operation_run_id}>{o.operation_type_id} · {o.station_id} · {o.operation_run_id}</option>)}</select></label><p>Предыдущая операция: {previousRun || "выберите доработку"}</p><label>Записи повторного контроля<select multiple value={controlRecords} disabled={locked} onChange={e => setControlRecords(Array.from(e.target.selectedOptions, o => o.value))}>{records.filter(o => o.cycle_id === pinned.item.control_cycle_id && o.operation_run_id === run && o.effective_result === "no_defect_signs" && o.quality === "good").map(o => <option key={o.record_id} value={o.record_id!}>{recordLabel(o)}</option>)}</select></label></>}
+          {kind === "cycle" && <><label>Решение о доработке<select value={reworkDecision} disabled={locked} onChange={e => setReworkDecision(e.target.value)}><option value="">Выбрать</option>{pinned.item.decisions.filter(d => d.action === "rework").map(d => <option key={d.decision_id} value={d.decision_id}>{d.reason} · {d.actor_id} · {d.decision_id}</option>)}</select></label>
+            <label>Повторяемые операции<select multiple value={Object.keys(plannedRuns)} disabled={locked} onChange={e => { const next = Object.fromEntries(Array.from(e.target.selectedOptions, o => [o.value, plannedRuns[o.value] ?? crypto.randomUUID()])); setPlannedRuns(next); setBindings(Object.fromEntries(pinned.item.completeness.map(cp => [cp.checkpoint_id, cp.operation_run_id === null ? null : Object.values(next)[0] ?? null]))); }}>{pinned.item.operations?.map(o => <option key={o.operation_run_id} value={o.operation_run_id}>{o.operation_type_id} · {o.station_id} · {o.operation_run_id}</option>)}</select></label>
+            <p>Новые идентификаторы операций и сессий создаются автоматически. Передайте план источнику производственных событий.</p>
+            {pinned.item.completeness.filter(cp => cp.operation_run_id !== null).map(cp => <label key={cp.checkpoint_id}>Повторный контроль {cp.checkpoint_id}<select value={bindings[cp.checkpoint_id] ?? ""} disabled={locked} onChange={e => setBindings({ ...bindings, [cp.checkpoint_id]: e.target.value })}><option value="">Выбрать операцию</option>{Object.entries(plannedRuns).map(([old, value]) => <option key={value} value={value}>Повтор {old}</option>)}</select></label>)}
+            <ul>{Object.entries(plannedRuns).map(([old, value]) => <li key={value}>Повтор {old} → {value}</li>)}</ul>
+          </>}
+          {(kind === "bind_control" || kind === "replace_control") && <><label>Исправляемый контроль<select value={record} disabled={locked} onChange={e => setRecord(e.target.value)}><option value="">Выбрать</option>{records.filter(o => kind === "bind_control" ? o.cycle_id === null : o.effective_result === "not_assessable").map(o => <option key={o.record_id} value={o.record_id!}>{recordLabel(o)}</option>)}</select></label>
+            {kind === "bind_control" ? <label>Зарегистрированный цикл<select value={bindingCycle} disabled={locked} onChange={e => setBindingCycle(e.target.value)}>{Object.keys(pinned.item.cycles ?? {}).map(id => <option key={id}>{id}</option>)}</select></label> : <label>Пригодный повтор<select value={replacement} disabled={locked} onChange={e => setReplacement(e.target.value)}><option value="">Выбрать</option>{records.filter(o => o.record_id !== record && o.quality === "good" && o.effective_result !== "not_assessable").map(o => <option key={o.record_id} value={o.record_id!}>{recordLabel(o)}</option>)}</select></label>}</>}
+          {kind === "scope" && <><button disabled={locked} onClick={() => api.scope(token).then(setScope).catch(error)}>Обновить ограничения области</button><label>Ограничение области<select value={constraint} disabled={locked} onChange={e => setConstraint(e.target.value)}><option value="">Выбрать</option>{scope?.constraints.map(c => <option key={c.constraint_id} value={c.constraint_id}>{c.reason} · {c.constraint_id}</option>)}</select></label><p>Решение проверяет основания всех изделий области: {Object.keys(scope?.bases ?? {}).join(", ") || "загрузите ограничения"}. Исходный неопределённый сигнал сохраняется.</p></>}
           <button disabled={locked || stale || review.phase !== "idle" || !reason.trim()} onClick={submit}>Отправить отдельную команду</button>
-          {review.phase === "unknown" && <button onClick={() => review.pending && void send(review.pending, true)}>Исход неизвестен: повторить точное тело и ключ</button>}
+          {review.phase === "unknown" && <button disabled={authBusy} onClick={() => review.pending && void send(review.pending, true)}>Исход неизвестен: повторить точное тело и ключ</button>}
           {review.pending && <details><summary>Тело отправленной команды</summary><pre>{review.pending.body}</pre></details>}
         </>}
       </section>
       <section><h2>Тогда / сейчас</h2><p>Изменение оснований — не установленная физическая причина.</p>
-        <label>Предыдущее basis_id из истории решений<input value={oldBasisId} onChange={e => setOldBasisId(e.target.value)} /></label>
+        <label>Предыдущее основание из истории решений<select value={oldBasisId} onChange={e => setOldBasisId(e.target.value)}><option value="">Выбрать решение</option>{displayed.decisions.map(d => <option key={d.decision_id} value={d.basis_id}>{actions[d.action] ?? d.action} · {d.reason} · {d.basis_id}</option>)}</select></label>
         <button onClick={() => void loadComparison(oldBasisId, "old")}>Открыть сохранённое основание</button>
         <button onClick={() => {
           const id = target ? latest?.nonconformities.find(x => x.id === target)?.basis_id : latest?.basis_id;

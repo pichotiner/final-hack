@@ -606,7 +606,8 @@ def test_production_journal_atomically_projects_raw_quality_basis_and_outbox(pro
     assert len(state["observations"]) == 2
     assert len(state["outbox"]) == state["context_revision"] == 8
     assert count(admin, raw_events, item_id) == 7
-    assert count(admin, quality_bases, item_id) == 8
+    # P7 prepares the initial revision-zero B on write, plus B for revisions 1..8.
+    assert count(admin, quality_bases, item_id) == 9
     history = journal.get_history(item_id)
     assert len(history["timeline"]) == 7
     assert {entry["projection_status"] for entry in history["timeline"]} == {"applied"}

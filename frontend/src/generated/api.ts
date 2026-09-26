@@ -4,6 +4,22 @@
  */
 
 export interface paths {
+    "/api/v2/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/work-orders": {
         parameters: {
             query?: never;
@@ -172,6 +188,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/items/{item_id}/control-recoveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: components["parameters"]["ItemId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["recoverControl"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/scope-constraints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listScopeConstraints"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/scope-constraints/{id}/resolutions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["CardId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["resolveScope"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/nonconformities/{id}": {
         parameters: {
             query?: never;
@@ -294,6 +362,10 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        Session: {
+            actor_id: components["schemas"]["Id"];
+            roles: string[];
+        };
         Empty: Record<string, never>;
         WorkOrder: {
             id: components["schemas"]["Id"];
@@ -362,6 +434,7 @@ export interface components {
             evidence_refs?: string[];
             control_cycle_id?: components["schemas"]["NullableId"];
             control_session_id?: components["schemas"]["NullableId"];
+            replaces_observation_id?: components["schemas"]["NullableId"];
         };
         ReportedDuration: {
             value: number;
@@ -611,6 +684,48 @@ export interface components {
             /** @enum {string} */
             disposition: "released" | "rework" | "rejected";
         };
+        ControlRecoveryCommand: {
+            reason: string;
+            expected_revision: components["schemas"]["Revision"];
+            expected_basis_id: components["schemas"]["Id"];
+            idempotency_key: components["schemas"]["Id"];
+            /** @enum {string} */
+            action: "bind_control" | "replace_control";
+            record_id: components["schemas"]["Id"];
+            replacement_record_id?: components["schemas"]["Id"];
+            control_cycle_id?: components["schemas"]["Id"];
+        };
+        ScopeBasis: {
+            basis_id: components["schemas"]["Id"];
+            context_revision: components["schemas"]["Revision"];
+        };
+        ScopeReview: {
+            constraints: {
+                constraint_id: components["schemas"]["Id"];
+                reason: string;
+            }[];
+            bases: {
+                [key: string]: components["schemas"]["ScopeBasis"];
+            };
+        };
+        ScopeCommand: {
+            reason: string;
+            idempotency_key: components["schemas"]["Id"];
+            bases: {
+                [key: string]: components["schemas"]["ScopeBasis"];
+            };
+        };
+        ScopeResolution: {
+            constraint_id: components["schemas"]["Id"];
+            decision_id: components["schemas"]["Id"];
+            actor_id: components["schemas"]["Id"];
+            reason: string;
+            bases: {
+                [key: string]: components["schemas"]["ScopeBasis"];
+            };
+            /** Format: date-time */
+            decided_at: string;
+        };
         ResolveCommand: {
             reason: string;
             expected_revision: components["schemas"]["Revision"];
@@ -666,7 +781,7 @@ export interface components {
             decision_id: components["schemas"]["Id"];
             target_id: components["schemas"]["Id"];
             /** @enum {string} */
-            action: "confirm" | "reject" | "request_check" | "resolve" | "reopen" | "released" | "rework" | "rejected";
+            action: "confirm" | "reject" | "request_check" | "resolve" | "reopen" | "released" | "rework" | "rejected" | "bind_control" | "replace_control";
             reason: string;
             actor_id: components["schemas"]["Id"];
             basis_id: components["schemas"]["Id"];
@@ -707,6 +822,7 @@ export interface components {
             operation_run_id: components["schemas"]["NullableId"];
             control_session_id: components["schemas"]["NullableId"];
             effective_results: components["schemas"]["InspectionResult"][];
+            resolution_decision_ids?: components["schemas"]["Id"][];
         };
         Basis: {
             basis_id: components["schemas"]["Id"];
@@ -765,6 +881,8 @@ export interface components {
             quality: components["schemas"]["ObservationQuality"];
             defect_type: components["schemas"]["NullableId"];
             defect_ref: components["schemas"]["NullableId"];
+            /** Format: date-time */
+            occurred_at?: string | null;
         };
         AnalysisSnapshot: {
             observations: components["schemas"]["BasisObservation"][];
@@ -784,6 +902,28 @@ export interface components {
             kpi: {
                 [key: string]: number;
             };
+            circumstances?: components["schemas"]["Circumstances"][];
+        };
+        Circumstances: {
+            nonconformity_id: components["schemas"]["Id"];
+            /** @constant */
+            status: "hypothesis";
+            before_record_id: components["schemas"]["NullableId"];
+            after_record_id: components["schemas"]["NullableId"];
+            operation_run_ids: components["schemas"]["Id"][];
+            related_events: components["schemas"]["TimelineEntry"][];
+            alternatives: {
+                category: string;
+                explanation: string;
+                record_ids: components["schemas"]["Id"][];
+            }[];
+            limitations: string[];
+            comparison?: {
+                component_id?: components["schemas"]["NullableId"];
+                region_id?: components["schemas"]["NullableId"];
+                method_version?: components["schemas"]["NullableId"];
+            };
+            contradicting_record_ids?: components["schemas"]["Id"][];
         };
         Nonconformity: {
             id: components["schemas"]["Id"];
@@ -811,6 +951,29 @@ export interface components {
             completeness: components["schemas"]["CheckpointAssessment"][];
             nonconformities: components["schemas"]["Nonconformity"][];
             decisions: components["schemas"]["Decision"][];
+            operations?: components["schemas"]["Operation"][];
+            timeline?: components["schemas"]["TimelineEntry"][];
+            observations?: components["schemas"]["BasisObservation"][];
+            cycles?: {
+                [key: string]: {
+                    control_sessions: {
+                        [key: string]: components["schemas"]["Id"];
+                    };
+                    checkpoint_operation_run_ids: {
+                        [key: string]: components["schemas"]["NullableId"];
+                    };
+                };
+            };
+        };
+        Operation: {
+            operation_run_id: components["schemas"]["Id"];
+            previous_operation_run_id?: components["schemas"]["NullableId"];
+            operation_type_id?: components["schemas"]["NullableId"];
+            operator_id?: components["schemas"]["NullableId"];
+            station_id?: components["schemas"]["NullableId"];
+            status: string;
+            /** Format: date-time */
+            finished_at?: string | null;
         };
         ItemPage: {
             items: components["schemas"]["Item"][];
@@ -827,6 +990,13 @@ export interface components {
             received_at: string;
             /** @enum {string} */
             projection_status: "applied" | "unresolved";
+            operation_run_id?: components["schemas"]["NullableId"];
+            operator_id?: components["schemas"]["NullableId"];
+            equipment_id?: components["schemas"]["NullableId"];
+            station_id?: components["schemas"]["NullableId"];
+            details?: {
+                [key: string]: unknown;
+            } | null;
         };
         TimelinePage: {
             items: components["schemas"]["TimelineEntry"][];
@@ -839,12 +1009,68 @@ export interface components {
             counts: {
                 [key: string]: number;
             };
+            period?: {
+                /** Format: date-time */
+                since: string | null;
+                /** Format: date-time */
+                until: string | null;
+            };
+            period_inspected_items?: number;
+            definitions?: string[];
+            defects?: components["schemas"]["DefectAggregate"][];
+            durations?: components["schemas"]["DurationAggregate"][];
+            comparable_work?: components["schemas"]["WorkAggregate"][];
+        };
+        DefectAggregate: {
+            defect_type: components["schemas"]["NullableId"];
+            line_id: components["schemas"]["NullableId"];
+            station_id: components["schemas"]["NullableId"];
+            confirmed_defects: number;
+            cause_status?: string;
+            cause_category?: string;
+            nonconformity_ids: components["schemas"]["Id"][];
+            item_ids: components["schemas"]["Id"][];
+            record_ids: components["schemas"]["Id"][];
+            decision_ids: components["schemas"]["Id"][];
+        };
+        DurationAggregate: {
+            item_id: components["schemas"]["Id"];
+            station_id: components["schemas"]["NullableId"];
+            operator_id: components["schemas"]["NullableId"];
+            shift_id: components["schemas"]["NullableId"];
+            kind: string;
+            origin: string;
+            total_seconds: number;
+            measured_operations: number;
+            unavailable_operations: number;
+            completed_operations?: number;
+            incomplete_operations?: number;
+            invalid_operations?: number;
+            /** @constant */
+            unit?: "s";
+            operation_run_ids?: components["schemas"]["Id"][];
+            record_ids: components["schemas"]["Id"][];
+        };
+        WorkAggregate: {
+            item_type_id: components["schemas"]["NullableId"];
+            route_version: components["schemas"]["NullableId"];
+            operation_type_id: components["schemas"]["NullableId"];
+            station_id: components["schemas"]["NullableId"];
+            operator_id: components["schemas"]["NullableId"];
+            shift_id: components["schemas"]["NullableId"];
+            completed_operations: number;
+            confirmed_errors: number;
+            error_rate: number | null;
+            comparable?: boolean;
+            operation_run_ids?: components["schemas"]["Id"][];
+            record_ids: components["schemas"]["Id"][];
+            decision_ids: components["schemas"]["Id"][];
         };
         Delivery: {
             message_id: components["schemas"]["Id"];
             result_version: number;
             /** @enum {string} */
-            status: "pending" | "acknowledged" | "error";
+            status: "pending" | "sending" | "acknowledged" | "error";
             attempts: number;
             last_error: string | null;
         };
@@ -885,6 +1111,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authenticated identity for safe command retry */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"];
+                };
+            };
+        };
+    };
     listWorkOrders: {
         parameters: {
             query?: {
@@ -1165,6 +1411,96 @@ export interface operations {
             503: components["responses"]["Error"];
         };
     };
+    recoverControl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: components["parameters"]["ItemId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ControlRecoveryCommand"];
+            };
+        };
+        responses: {
+            /** @description Original successful decision replay */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Decision"];
+                };
+            };
+            /** @description New decision */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Decision"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
+    listScopeConstraints: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Open pilot constraints and reviewed scope */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScopeReview"];
+                };
+            };
+        };
+    };
+    resolveScope: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["CardId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScopeCommand"];
+            };
+        };
+        responses: {
+            /** @description Original or new audited scope resolution */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScopeResolution"];
+                };
+            };
+            403: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            422: components["responses"]["Error"];
+        };
+    };
     getNonconformity: {
         parameters: {
             query?: never;
@@ -1298,6 +1634,8 @@ export interface operations {
         parameters: {
             query?: {
                 item_id?: components["schemas"]["Id"][];
+                since?: string;
+                until?: string;
             };
             header?: never;
             path?: never;

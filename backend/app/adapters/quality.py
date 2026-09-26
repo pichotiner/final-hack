@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from contextlib import nullcontext
 from contextvars import ContextVar
 from dataclasses import asdict
@@ -70,6 +71,20 @@ def _encode(item) -> dict:
         return value
 
     return encode(item)
+
+
+def _compact(item):
+    state = _encode(item)
+    state.update(
+        storage_format=2,
+        decision_refs=[d.decision_id for d in item.decisions],
+        disposition_refs=[d.decision_id for d in item.dispositions],
+        basis_refs=[
+            b.basis_id for b in item.bases.values() if b.context_revision == item.context_revision
+        ],
+    )
+    state.update(bases={}, decisions=[], dispositions=[], outbox={})
+    return state
 
 
 def _decode(item: dict):
@@ -160,6 +175,7 @@ def _decode(item: dict):
             operator_id=value.get("operator_id"),
             action_record_id=value.get("action_record_id"),
             control_record_ids=tuple(value.get("control_record_ids", ())),
+            control_binding=value.get("control_binding", {}),
         )
 
     def message(value):
@@ -212,6 +228,8 @@ def _decode(item: dict):
         ),
         evidence_record_ids=item.get("evidence_record_ids", []),
         scope_constraints=item.get("scope_constraints", {}),
+        observation_bindings=item.get("observation_bindings", {}),
+        control_replacements=item.get("control_replacements", {}),
     )
 
 
@@ -248,7 +266,8 @@ class PostgresQualityWorkflow:
                     "state"
                 ]["reason"]
                 workflow._item(item_id).evidence_record_ids.append(constraint["constraint_id"])
-            state = _encode(workflow._items[item_id])
+            self._prepare_bases(workflow, item_id)
+            state = _compact(workflow._items[item_id])
             connection.execute(
                 quality_items.insert().values(
                     item_id=item_id,
@@ -267,8 +286,86 @@ class PostgresQualityWorkflow:
                     created_at=now,
                 )
             )
+            self._persist_children(connection, workflow._items[item_id])
 
-    def _run(self, item_id: str, operation, *, connection=None):
+    @staticmethod
+    def _prepare_bases(workflow, item_id):
+        item = workflow._item(item_id)
+        targets = {None, *item.nonconformities}
+        existing = {
+            b.target_id for b in item.bases.values() if b.context_revision == item.context_revision
+        }
+        for target in sorted(targets - existing, key=lambda x: x or ""):
+            workflow.create_basis(item_id, target)
+
+    def _hydrate(self, connection, state, *, basis_id=None, all_outbox=False):
+        if state.get("storage_format") != 2:
+            return _decode(state)
+        value = copy.deepcopy(state)
+        item_id = value["item_id"]
+        refs = value["decision_refs"] + value["disposition_refs"]
+        decisions = {
+            row["decision_id"]: row["decision"]
+            for row in connection.execute(
+                select(quality_decisions).where(
+                    quality_decisions.c.item_id == item_id,
+                    quality_decisions.c.decision_id.in_(refs),
+                )
+            ).mappings()
+        }
+        if set(decisions) != set(refs):
+            raise IntegrityViolation("An immutable decision is unavailable.")
+        value["decisions"] = [decisions[key] for key in value["decision_refs"]]
+        value["dispositions"] = [decisions[key] for key in value["disposition_refs"]]
+        required = set(value["basis_refs"]) | {d["basis_id"] for d in decisions.values()}
+        requested = required | ({basis_id} if basis_id else set())
+        value["bases"] = {
+            row["basis_id"]: row["snapshot"]
+            for row in connection.execute(
+                select(quality_bases).where(
+                    quality_bases.c.item_id == item_id, quality_bases.c.basis_id.in_(requested)
+                )
+            ).mappings()
+        }
+        if not required.issubset(value["bases"]):
+            raise IntegrityViolation("An immutable basis is unavailable.")
+        query = (
+            select(quality_outbox)
+            .where(quality_outbox.c.item_id == item_id)
+            .order_by(quality_outbox.c.result_version.desc())
+        )
+        if not all_outbox:
+            query = query.limit(1)
+        value["outbox"] = {
+            row["message_id"]: dict(row) for row in connection.execute(query).mappings()
+        }
+        for msg in value["outbox"].values():
+            msg["created_at"] = msg["created_at"].isoformat()
+        return _decode(value)
+
+    def read(self, item_id, operation, *, basis_id=None, all_outbox=False):
+        """Consistent MVCC read; never acquires a writer/advisory lock or prepares a B."""
+        with self.engine.connect().execution_options(
+            isolation_level="REPEATABLE READ"
+        ) as connection:
+            with connection.begin():
+                row = (
+                    connection.execute(
+                        self._verified_query().where(quality_items.c.item_id == item_id)
+                    )
+                    .mappings()
+                    .one_or_none()
+                )
+                if row is None:
+                    raise UnknownEntity("Unknown item.")
+                self._verify_row(row)
+                workflow = QualityWorkflow(clock=self.clock) if self.clock else QualityWorkflow()
+                workflow._items[item_id] = self._hydrate(
+                    connection, row["state"], basis_id=basis_id, all_outbox=all_outbox
+                )
+                return operation(workflow, connection)
+
+    def _run(self, item_id: str, operation, *, connection=None, basis_id=None):
         with self.engine.begin() if connection is None else nullcontext(connection) as connection:
             production_guard(connection)
             row = (
@@ -297,11 +394,18 @@ class PostgresQualityWorkflow:
                     "The mutable quality projection diverged from its version."
                 )
             workflow = QualityWorkflow(clock=self.clock) if self.clock else QualityWorkflow()
-            workflow._items[item_id] = _decode(row["state"])
+            workflow._items[item_id] = self._hydrate(connection, row["state"], basis_id=basis_id)
+            original = workflow._items[item_id]
+            children = (
+                set(original.bases),
+                {d.decision_id for d in original.decisions + original.dispositions},
+                set(original.outbox),
+            )
             result = operation(workflow, connection)
+            self._prepare_bases(workflow, item_id)
             item = workflow._items[item_id]
             now = workflow.clock()
-            state = _encode(item)
+            state = _compact(item)
             if state != row["state"]:
                 storage_revision = row["storage_revision"] + 1
                 connection.execute(
@@ -323,11 +427,13 @@ class PostgresQualityWorkflow:
                         created_at=now,
                     )
                 )
-                self._persist_children(connection, item)
+            self._persist_children(connection, item, children)
             return result
 
-    def _persist_children(self, connection, item) -> None:
+    def _persist_children(self, connection, item, existing=(set(), set(), set())) -> None:
         for basis in item.bases.values():
+            if basis.basis_id in existing[0]:
+                continue
             connection.execute(
                 insert(quality_bases)
                 .values(
@@ -341,6 +447,8 @@ class PostgresQualityWorkflow:
                 .on_conflict_do_nothing(index_elements=[quality_bases.c.basis_id])
             )
         for decision in [*item.decisions, *item.dispositions]:
+            if decision.decision_id in existing[1]:
+                continue
             connection.execute(
                 insert(quality_decisions)
                 .values(
@@ -355,6 +463,8 @@ class PostgresQualityWorkflow:
                 .on_conflict_do_nothing(index_elements=[quality_decisions.c.decision_id])
             )
         for message in item.outbox.values():
+            if message.message_id in existing[2]:
+                continue
             if "confirmed_nonconformities" in message.payload:
                 from app.adapters.shared_contract import validate
 
@@ -440,7 +550,7 @@ class PostgresQualityWorkflow:
             )
             return CommandResult(result, duplicate=False)
 
-        return self._run(item_id, invoke)
+        return self._run(item_id, invoke, basis_id=payload.get("expected_basis_id"))
 
     def record_observation(self, item_id: str, **kwargs):
         return self._run(
@@ -555,6 +665,17 @@ class PostgresQualityWorkflow:
             lambda workflow: workflow.dispose(item_id, **kwargs),
         )
 
+    def recover_control(self, item_id, **kwargs):
+        return self._command(
+            item_id,
+            kwargs["actor_id"],
+            "control_recovery",
+            item_id,
+            kwargs["idempotency_key"],
+            {k: v for k, v in kwargs.items() if k != "idempotency_key"},
+            lambda workflow: workflow.recover_control(item_id, **kwargs),
+        )
+
     def start_cycle(self, item_id: str, **kwargs):
         if kwargs.get("required_checkpoints") is None:
             current = self.state(item_id)
@@ -585,33 +706,37 @@ class PostgresQualityWorkflow:
         )
 
     def acknowledge(self, message_id: str, **kwargs):
-        item_id = self._find_outbox_item(message_id)
-        return self._run(
-            item_id, lambda workflow, connection: workflow.acknowledge(message_id, **kwargs)
+        with self.engine.begin() as connection:
+            return self.acknowledge_in(connection, message_id, **kwargs)
+
+    def acknowledge_in(self, connection, message_id, **kwargs):
+        from app.domain.quality import _Item
+
+        row = (
+            connection.execute(
+                select(quality_outbox)
+                .where(quality_outbox.c.message_id == message_id)
+                .with_for_update()
+            )
+            .mappings()
+            .one_or_none()
         )
+        if row is None:
+            raise UnknownEntity("Unknown outbox message.")
+        workflow = QualityWorkflow()
+        item = _Item(row["item_id"], "", ())
+        item.outbox[message_id] = OutboxMessage(**dict(row))
+        workflow._items[item.item_id] = item
+        receipt = workflow.acknowledge(message_id, **kwargs)
+        connection.execute(
+            quality_outbox.update()
+            .where(quality_outbox.c.message_id == message_id)
+            .values(status="acknowledged", ack=receipt)
+        )
+        return receipt
 
     def state(self, item_id: str):
-        with self.engine.connect() as connection:
-            row = (
-                connection.execute(select(quality_items).where(quality_items.c.item_id == item_id))
-                .mappings()
-                .one_or_none()
-            )
-            if row is None:
-                raise UnknownEntity("Unknown item.")
-            version = connection.execute(
-                select(quality_state_versions.c.snapshot).where(
-                    quality_state_versions.c.item_id == item_id,
-                    quality_state_versions.c.storage_revision == row["storage_revision"],
-                )
-            ).scalar_one_or_none()
-            if version != row["state"]:
-                raise IntegrityViolation(
-                    "The mutable quality projection diverged from its version."
-                )
-            workflow = QualityWorkflow(clock=self.clock) if self.clock else QualityWorkflow()
-            workflow._items[item_id] = _decode(row["state"])
-            return workflow.state(item_id)
+        return self.read(item_id, lambda workflow, _: workflow.state(item_id), all_outbox=True)
 
     def set_production_history(self, item_id: str, history: dict, record_ids):
         return self._run(
@@ -632,8 +757,10 @@ class PostgresQualityWorkflow:
                 raise UnknownEntity("Unknown basis.")
             return basis
 
-    def analytics(self, item_ids=None):
-        with self.engine.connect() as connection:
+    def analytics(self, item_ids=None, *, since=None, until=None):
+        with self.engine.connect().execution_options(
+            isolation_level="REPEATABLE READ"
+        ) as connection:
             query = self._verified_query()
             if item_ids is not None:
                 query = query.where(quality_items.c.item_id.in_(tuple(item_ids)))
@@ -641,9 +768,34 @@ class PostgresQualityWorkflow:
             workflow = QualityWorkflow(clock=self.clock) if self.clock else QualityWorkflow()
             for row in rows:
                 self._verify_row(row)
-                item = _decode(row["state"])
+                item = self._hydrate(connection, row["state"])
                 workflow._items[item.item_id] = item
-            return workflow.analytics()
+            return workflow.analytics(since=since, until=until)
+
+    def upgrade_storage(self):
+        """Append a new current interpretation; preserve every legacy state and B."""
+        with self.engine.begin() as connection:
+            production_guard(connection)
+            ids = list(connection.scalars(select(quality_items.c.item_id)))
+            upgraded = 0
+            for item_id in ids:
+
+                def upgrade(workflow, _, item_id=item_id):
+                    item = workflow._item(item_id)
+                    if any(
+                        b.context_revision == item.context_revision
+                        and b.processor_version == "quality-v3"
+                        for b in item.bases.values()
+                    ):
+                        return False
+                    item.context_revision += 1
+                    if item.dispositions:
+                        item.disposition_review_required = True
+                    workflow._emit(item)
+                    return True
+
+                upgraded += int(self._run(item_id, upgrade, connection=connection))
+            return upgraded
 
     def list_states(self):
         with self.engine.connect() as connection:
@@ -651,8 +803,22 @@ class PostgresQualityWorkflow:
             states = []
             for row in rows:
                 self._verify_row(row)
-                states.append(self._state_from_json(row["state"]))
+                workflow = QualityWorkflow()
+                item = self._hydrate(connection, row["state"])
+                workflow._items[item.item_id] = item
+                states.append(workflow.state(item.item_id))
             return states
+
+    def item_ids_page(self, cursor, limit):
+        with self.engine.connect() as connection:
+            return list(
+                connection.scalars(
+                    select(quality_items.c.item_id)
+                    .where(quality_items.c.item_id > cursor)
+                    .order_by(quality_items.c.item_id)
+                    .limit(limit + 1)
+                )
+            )
 
     @staticmethod
     def _verified_query():
@@ -720,12 +886,13 @@ class PostgresQualityWorkflow:
 
     def _find_item_id(self, nonconformity_id: str) -> str:
         with self.engine.connect() as connection:
-            rows = connection.execute(
-                select(quality_items.c.item_id, quality_items.c.state)
-            ).mappings()
-            for row in rows:
-                if nonconformity_id in row["state"].get("nonconformities", {}):
-                    return row["item_id"]
+            value = connection.scalar(
+                select(quality_items.c.item_id).where(
+                    quality_items.c.state["nonconformities"].has_key(nonconformity_id)
+                )
+            )
+            if value is not None:
+                return value
         raise UnknownEntity("Unknown nonconformity.")
 
     def _find_outbox_item(self, message_id: str) -> str:

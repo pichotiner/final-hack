@@ -91,12 +91,8 @@ class OutboxDeliveryWorker:
             if row["lease_token"] != message["lease_token"] or row["status"] != "sending":
                 return "lease_lost"
             if error is None:
-                self.journal.quality._run(
-                    message["item_id"],
-                    lambda workflow, _: workflow.acknowledge(
-                        message["message_id"], receipt=receipt
-                    ),
-                    connection=connection,
+                self.journal.quality.acknowledge_in(
+                    connection, message["message_id"], receipt=receipt
                 )
             status = (
                 "acknowledged" if error is None else ("pending" if error.retryable else "error")

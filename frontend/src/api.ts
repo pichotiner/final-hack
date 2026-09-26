@@ -8,6 +8,8 @@ export type DispositionCommand = components["schemas"]["DispositionCommand"];
 export type ResolutionCommand = components["schemas"]["ResolutionCommand"];
 export type CycleCommand = components["schemas"]["CycleCommand"];
 export type Analytics = components["schemas"]["Analytics"];
+export type RecoveryCommand = components["schemas"]["ControlRecoveryCommand"];
+export type ScopeCommand = components["schemas"]["ScopeCommand"];
 
 export class ApiError extends Error {
   constructor(public code: string, message: string, public outcomeUnknown = false) {
@@ -17,6 +19,15 @@ export class ApiError extends Error {
 
 export function verifyCommandReceipt(path: string, body: string, result: Record<string, unknown>) {
   const command = JSON.parse(body);
+  if (path.startsWith("/api/v2/scope-constraints/")) {
+    const bases = result?.bases as Record<string, { basis_id: string; context_revision: number }> | undefined;
+    if (!result || typeof result.decision_id !== "string" || result.constraint_id !== decodeURIComponent(path.split("/")[4]) ||
+        !bases || Object.keys(bases).length !== Object.keys(command.bases).length ||
+        Object.keys(command.bases).some(key => bases[key]?.basis_id !== command.bases[key].basis_id || bases[key]?.context_revision !== command.bases[key].context_revision)) {
+      throw new ApiError("invalid_command_receipt", "Исход неизвестен: неверная квитанция разрешения области", true);
+    }
+    return;
+  }
   const cycle = path.endsWith("/control-cycles");
   if (!result || !Number.isInteger(result.context_revision) ||
       (cycle ? typeof result.control_cycle_id !== "string" :
@@ -56,11 +67,13 @@ export async function request<T>(path: string, token: string, body?: string): Pr
 }
 
 export const api = {
-  items: (token: string) => request<components["schemas"]["ItemPage"]>("/api/v2/items", token),
+  session: (token: string) => request<components["schemas"]["Session"]>("/api/v2/session", token),
+  scope: (token: string) => request<components["schemas"]["ScopeReview"]>("/api/v2/scope-constraints", token),
+  items: async (token: string) => ({ items: await allPages<Item>("/api/v2/items", token), next_cursor: null }),
   item: (id: string, token: string) => request<Item>(`/api/v2/items/${encodeURIComponent(id)}`, token),
   basis: (id: string, token: string) => request<Basis>(`/api/v2/bases/${encodeURIComponent(id)}`, token),
-  analytics: (token: string) => request<Analytics>("/api/v2/analytics", token),
-  timeline: (id: string, token: string) => request<components["schemas"]["TimelinePage"]>(`/api/v2/items/${encodeURIComponent(id)}/timeline`, token),
+  analytics: (token: string, query = "") => request<Analytics>(`/api/v2/analytics${query ? `?${query}` : ""}`, token),
+  timeline: async (id: string, token: string) => ({ items: await allPages<components["schemas"]["TimelineEntry"]>(`/api/v2/items/${encodeURIComponent(id)}/timeline`, token), next_cursor: null }),
   orders: (token: string) => request<components["schemas"]["WorkOrderPage"]>("/api/v2/work-orders", token),
   line: (id: string, token: string) => request<components["schemas"]["LineStatus"]>(`/api/v2/lines/${encodeURIComponent(id)}/status`, token),
   deliveries: async (token: string) => {
@@ -74,3 +87,14 @@ export const api = {
     return items;
   },
 };
+
+async function allPages<T>(path: string, token: string): Promise<T[]> {
+  const items: T[] = [];
+  let cursor: string | null = null;
+  do {
+    const page: { items: T[]; next_cursor: string | null } = await request(`${path}?limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`, token);
+    items.push(...page.items);
+    cursor = page.next_cursor;
+  } while (cursor);
+  return items; // A stale timeline rejects the whole read, never merges mixed revisions.
+}

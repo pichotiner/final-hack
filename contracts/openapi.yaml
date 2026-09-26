@@ -1,9 +1,9 @@
 openapi: 3.1.0
 info:
   title: EFQA demonstrator — DP-01 transport
-  version: 0.4.0
+  version: 0.5.0
   description: >-
-    P5 integration revision on the role 2 transport, pending joint review. Not a vendor ERP API.
+    P7 remediation: reviewed control recovery, analytics and pilot read model. Not a vendor ERP API.
     Semantic authority is docs/architecture/decision-protocol.md. Source envelope remains 1.0.
     Resolution evidence references accepted raw inspection records. Stateful rules need core checks.
 servers:
@@ -11,6 +11,11 @@ servers:
 security:
   - bearerAuth: []
 paths:
+  /api/v2/session:
+    get:
+      operationId: getSession
+      responses:
+        '200': {description: Authenticated identity for safe command retry, content: {application/json: {schema: {$ref: '#/components/schemas/Session'}}}}
   /api/v2/work-orders:
     get:
       operationId: listWorkOrders
@@ -94,6 +99,27 @@ paths:
         '403': {$ref: '#/components/responses/Error'}
         '422': {$ref: '#/components/responses/Error'}
         '503': {$ref: '#/components/responses/Error'}
+  /api/v2/items/{item_id}/control-recoveries:
+    parameters: [{$ref: '#/components/parameters/ItemId'}]
+    post:
+      operationId: recoverControl
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ControlRecoveryCommand'}}}}
+      responses: *CommandResponses
+  /api/v2/scope-constraints:
+    get:
+      operationId: listScopeConstraints
+      responses:
+        '200': {description: Open pilot constraints and reviewed scope, content: {application/json: {schema: {$ref: '#/components/schemas/ScopeReview'}}}}
+  /api/v2/scope-constraints/{id}/resolutions:
+    parameters: [{$ref: '#/components/parameters/CardId'}]
+    post:
+      operationId: resolveScope
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/ScopeCommand'}}}}
+      responses:
+        '200': {description: Original or new audited scope resolution, content: {application/json: {schema: {$ref: '#/components/schemas/ScopeResolution'}}}}
+        '409': {$ref: '#/components/responses/Error'}
+        '403': {$ref: '#/components/responses/Error'}
+        '422': {$ref: '#/components/responses/Error'}
   /api/v2/nonconformities/{id}:
     parameters: [{$ref: '#/components/parameters/CardId'}]
     get:
@@ -124,7 +150,10 @@ paths:
   /api/v2/analytics:
     get:
       operationId: getAnalytics
-      parameters: [{name: item_id, in: query, schema: {type: array, items: {$ref: '#/components/schemas/Id'}}, style: form, explode: true}]
+      parameters:
+        - {name: item_id, in: query, schema: {type: array, items: {$ref: '#/components/schemas/Id'}}, style: form, explode: true}
+        - {name: since, in: query, schema: {type: string, format: date-time}}
+        - {name: until, in: query, schema: {type: string, format: date-time}}
       responses:
         '200': {description: Explicit cohort and current KPI, content: {application/json: {schema: {$ref: '#/components/schemas/Analytics'}}}}
   /api/v2/integrations/deliveries:
@@ -153,6 +182,12 @@ components:
   responses:
     Error: {description: 'Structured error for this attempt. A denied retry does not determine the outcome of an earlier timed-out command.', content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}
   schemas:
+    Session:
+      type: object
+      required: [actor_id, roles]
+      properties:
+        actor_id: {$ref: '#/components/schemas/Id'}
+        roles: {type: array, items: {type: string}}
     Empty: {type: object, additionalProperties: false}
     WorkOrder:
       type: object
@@ -228,6 +263,7 @@ components:
         evidence_refs: {type: array, items: {type: string}}
         control_cycle_id: {$ref: '#/components/schemas/NullableId'}
         control_session_id: {$ref: '#/components/schemas/NullableId'}
+        replaces_observation_id: {$ref: '#/components/schemas/NullableId'}
       description: 'Structural DTO. defect_signs/empty, no_defect_signs/nonempty and phase/run checks live in contracts.validation.validate_source_event.'
     ReportedDuration:
       type: object
@@ -376,6 +412,54 @@ components:
       properties:
         <<: *ExpectedProperties
         disposition: {type: string, enum: [released, rework, rejected]}
+    ControlRecoveryCommand:
+      type: object
+      additionalProperties: false
+      required: [action, record_id, reason, expected_revision, expected_basis_id, idempotency_key]
+      properties:
+        <<: *ExpectedProperties
+        action: {type: string, enum: [bind_control, replace_control]}
+        record_id: {$ref: '#/components/schemas/Id'}
+        replacement_record_id: {$ref: '#/components/schemas/Id'}
+        control_cycle_id: {$ref: '#/components/schemas/Id'}
+    ScopeBasis:
+      type: object
+      additionalProperties: false
+      required: [basis_id, context_revision]
+      properties:
+        basis_id: {$ref: '#/components/schemas/Id'}
+        context_revision: {$ref: '#/components/schemas/Revision'}
+    ScopeReview:
+      type: object
+      required: [constraints, bases]
+      properties:
+        constraints:
+          type: array
+          items:
+            type: object
+            required: [constraint_id, reason]
+            properties:
+              constraint_id: {$ref: '#/components/schemas/Id'}
+              reason: {type: string}
+        bases: {type: object, additionalProperties: {$ref: '#/components/schemas/ScopeBasis'}}
+    ScopeCommand:
+      type: object
+      additionalProperties: false
+      required: [reason, idempotency_key, bases]
+      properties:
+        reason: {type: string, minLength: 1, pattern: '\S'}
+        idempotency_key: {$ref: '#/components/schemas/Id'}
+        bases: {type: object, additionalProperties: {$ref: '#/components/schemas/ScopeBasis'}}
+    ScopeResolution:
+      type: object
+      required: [constraint_id, decision_id, actor_id, reason, bases, decided_at]
+      properties:
+        constraint_id: {$ref: '#/components/schemas/Id'}
+        decision_id: {$ref: '#/components/schemas/Id'}
+        actor_id: {$ref: '#/components/schemas/Id'}
+        reason: {type: string}
+        bases: {type: object, additionalProperties: {$ref: '#/components/schemas/ScopeBasis'}}
+        decided_at: {type: string, format: date-time}
     ResolveCommand:
       type: object
       additionalProperties: false
@@ -429,7 +513,7 @@ components:
       properties:
         decision_id: {$ref: '#/components/schemas/Id'}
         target_id: {$ref: '#/components/schemas/Id'}
-        action: {type: string, enum: [confirm, reject, request_check, resolve, reopen, released, rework, rejected]}
+        action: {type: string, enum: [confirm, reject, request_check, resolve, reopen, released, rework, rejected, bind_control, replace_control]}
         reason: {type: string}
         actor_id: {$ref: '#/components/schemas/Id'}
         basis_id: {$ref: '#/components/schemas/Id'}
@@ -469,6 +553,7 @@ components:
         operation_run_id: {$ref: '#/components/schemas/NullableId'}
         control_session_id: {$ref: '#/components/schemas/NullableId'}
         effective_results: {type: array, items: {$ref: '#/components/schemas/InspectionResult'}}
+        resolution_decision_ids: {type: array, items: {$ref: '#/components/schemas/Id'}}
     Basis:
       type: object
       required: [basis_id, item_id, target_id, context_revision, control_cycle_id, created_at, inputs, pinned_versions, decision_ids, completeness, blockers, unknowns, media_available, analysis_snapshot, previous_decisions, excluded_inputs, contradictions, analyzer_versions]
@@ -539,6 +624,7 @@ components:
         quality: {$ref: '#/components/schemas/ObservationQuality'}
         defect_type: {$ref: '#/components/schemas/NullableId'}
         defect_ref: {$ref: '#/components/schemas/NullableId'}
+        occurred_at: {type: [string, 'null'], format: date-time}
     AnalysisSnapshot:
       type: object
       required: [observations, nonconformities, scope_constraints, kpi]
@@ -560,6 +646,34 @@ components:
               resolution_ids: {type: array, items: {$ref: '#/components/schemas/Id'}}
         scope_constraints: {type: object, additionalProperties: {type: string}}
         kpi: {type: object, additionalProperties: {type: integer, minimum: 0}}
+        circumstances: {type: array, items: {$ref: '#/components/schemas/Circumstances'}}
+    Circumstances:
+      type: object
+      required: [nonconformity_id, status, before_record_id, after_record_id, operation_run_ids, related_events, alternatives, limitations]
+      properties:
+        nonconformity_id: {$ref: '#/components/schemas/Id'}
+        status: {type: string, const: hypothesis}
+        before_record_id: {$ref: '#/components/schemas/NullableId'}
+        after_record_id: {$ref: '#/components/schemas/NullableId'}
+        operation_run_ids: {type: array, items: {$ref: '#/components/schemas/Id'}}
+        related_events: {type: array, items: {$ref: '#/components/schemas/TimelineEntry'}}
+        alternatives:
+          type: array
+          items:
+            type: object
+            required: [category, explanation, record_ids]
+            properties:
+              category: {type: string}
+              explanation: {type: string}
+              record_ids: {type: array, items: {$ref: '#/components/schemas/Id'}}
+        limitations: {type: array, items: {type: string}}
+        comparison:
+          type: object
+          properties:
+            component_id: {$ref: '#/components/schemas/NullableId'}
+            region_id: {$ref: '#/components/schemas/NullableId'}
+            method_version: {$ref: '#/components/schemas/NullableId'}
+        contradicting_record_ids: {type: array, items: {$ref: '#/components/schemas/Id'}}
     Nonconformity:
       type: object
       required: [id, item_id, context_revision, basis_id, status, resolution_status, review_required, record_ids, cause, decisions]
@@ -589,6 +703,28 @@ components:
         completeness: {type: array, items: {$ref: '#/components/schemas/CheckpointAssessment'}}
         nonconformities: {type: array, items: {$ref: '#/components/schemas/Nonconformity'}}
         decisions: {type: array, items: {$ref: '#/components/schemas/Decision'}}
+        operations: {type: array, items: {$ref: '#/components/schemas/Operation'}}
+        timeline: {type: array, items: {$ref: '#/components/schemas/TimelineEntry'}}
+        observations: {type: array, items: {$ref: '#/components/schemas/BasisObservation'}}
+        cycles:
+          type: object
+          additionalProperties:
+            type: object
+            required: [control_sessions, checkpoint_operation_run_ids]
+            properties:
+              control_sessions: {type: object, additionalProperties: {$ref: '#/components/schemas/Id'}}
+              checkpoint_operation_run_ids: {type: object, additionalProperties: {$ref: '#/components/schemas/NullableId'}}
+    Operation:
+      type: object
+      required: [operation_run_id, status]
+      properties:
+        operation_run_id: {$ref: '#/components/schemas/Id'}
+        previous_operation_run_id: {$ref: '#/components/schemas/NullableId'}
+        operation_type_id: {$ref: '#/components/schemas/NullableId'}
+        operator_id: {$ref: '#/components/schemas/NullableId'}
+        station_id: {$ref: '#/components/schemas/NullableId'}
+        status: {type: string}
+        finished_at: {type: [string, 'null'], format: date-time}
     ItemPage:
       type: object
       required: [items, next_cursor]
@@ -606,6 +742,11 @@ components:
         occurred_at: {type: string, format: date-time}
         received_at: {type: string, format: date-time}
         projection_status: {type: string, enum: [applied, unresolved]}
+        operation_run_id: {$ref: '#/components/schemas/NullableId'}
+        operator_id: {$ref: '#/components/schemas/NullableId'}
+        equipment_id: {$ref: '#/components/schemas/NullableId'}
+        station_id: {$ref: '#/components/schemas/NullableId'}
+        details: {type: [object, 'null'], additionalProperties: true}
     TimelinePage:
       type: object
       required: [items, next_cursor]
@@ -619,13 +760,74 @@ components:
         item_ids: {type: array, items: {$ref: '#/components/schemas/Id'}}
         computed_at: {type: string, format: date-time}
         counts: {type: object, additionalProperties: {type: integer, minimum: 0}}
+        period:
+          type: object
+          required: [since, until]
+          properties:
+            since: {type: [string, 'null'], format: date-time}
+            until: {type: [string, 'null'], format: date-time}
+        period_inspected_items: {type: integer, minimum: 0}
+        definitions: {type: array, items: {type: string}}
+        defects: {type: array, items: {$ref: '#/components/schemas/DefectAggregate'}}
+        durations: {type: array, items: {$ref: '#/components/schemas/DurationAggregate'}}
+        comparable_work: {type: array, items: {$ref: '#/components/schemas/WorkAggregate'}}
+    DefectAggregate:
+      type: object
+      required: [defect_type, line_id, station_id, confirmed_defects, nonconformity_ids, item_ids, record_ids, decision_ids]
+      properties:
+        defect_type: {$ref: '#/components/schemas/NullableId'}
+        line_id: {$ref: '#/components/schemas/NullableId'}
+        station_id: {$ref: '#/components/schemas/NullableId'}
+        confirmed_defects: {type: integer, minimum: 0}
+        cause_status: {type: string}
+        cause_category: {type: string}
+        nonconformity_ids: {type: array, items: {$ref: '#/components/schemas/Id'}}
+        item_ids: {type: array, items: {$ref: '#/components/schemas/Id'}}
+        record_ids: {type: array, items: {$ref: '#/components/schemas/Id'}}
+        decision_ids: {type: array, items: {$ref: '#/components/schemas/Id'}}
+    DurationAggregate:
+      type: object
+      required: [item_id, station_id, operator_id, shift_id, kind, origin, total_seconds, measured_operations, unavailable_operations, record_ids]
+      properties:
+        item_id: {$ref: '#/components/schemas/Id'}
+        station_id: {$ref: '#/components/schemas/NullableId'}
+        operator_id: {$ref: '#/components/schemas/NullableId'}
+        shift_id: {$ref: '#/components/schemas/NullableId'}
+        kind: {type: string}
+        origin: {type: string}
+        total_seconds: {type: number, minimum: 0}
+        measured_operations: {type: integer, minimum: 0}
+        unavailable_operations: {type: integer, minimum: 0}
+        completed_operations: {type: integer, minimum: 0}
+        incomplete_operations: {type: integer, minimum: 0}
+        invalid_operations: {type: integer, minimum: 0}
+        unit: {type: string, const: s}
+        operation_run_ids: {type: array, items: {$ref: '#/components/schemas/Id'}}
+        record_ids: {type: array, items: {$ref: '#/components/schemas/Id'}}
+    WorkAggregate:
+      type: object
+      required: [item_type_id, route_version, operation_type_id, station_id, operator_id, shift_id, completed_operations, confirmed_errors, error_rate, record_ids, decision_ids]
+      properties:
+        item_type_id: {$ref: '#/components/schemas/NullableId'}
+        route_version: {$ref: '#/components/schemas/NullableId'}
+        operation_type_id: {$ref: '#/components/schemas/NullableId'}
+        station_id: {$ref: '#/components/schemas/NullableId'}
+        operator_id: {$ref: '#/components/schemas/NullableId'}
+        shift_id: {$ref: '#/components/schemas/NullableId'}
+        completed_operations: {type: integer, minimum: 0}
+        confirmed_errors: {type: integer, minimum: 0}
+        error_rate: {type: [number, 'null'], minimum: 0, maximum: 1}
+        comparable: {type: boolean}
+        operation_run_ids: {type: array, items: {$ref: '#/components/schemas/Id'}}
+        record_ids: {type: array, items: {$ref: '#/components/schemas/Id'}}
+        decision_ids: {type: array, items: {$ref: '#/components/schemas/Id'}}
     Delivery:
       type: object
       required: [message_id, result_version, status, attempts, last_error]
       properties:
         message_id: {$ref: '#/components/schemas/Id'}
         result_version: {type: integer, minimum: 1}
-        status: {type: string, enum: [pending, acknowledged, error]}
+        status: {type: string, enum: [pending, sending, acknowledged, error]}
         attempts: {type: integer, minimum: 0}
         last_error: {type: [string, 'null']}
     DeliveryPage:
