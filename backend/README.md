@@ -17,7 +17,7 @@ P7. Проверены recovery, ACK, MVCC read-side, keyring и pilot backup/re
 
 Следующий изолированный браузерный прогон P6 и ссылки на скринкаст/проверенные
 строки A01–A14 — в [docs/demo](../docs/demo/README.md) и
-[приёмочном протоколе](../docs/architecture/p6-acceptance-review.md).
+приёмочном протоколе.
 
 **Полный актуальный запуск:** [корневой README](../README.md) и
 [регламент пилота P7](../deploy/README.md). Профиль `compose.pilot.yaml` включает

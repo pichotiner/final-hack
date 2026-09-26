@@ -15,7 +15,10 @@ def validate_source_payload(document: dict) -> None:
         identifier(document.get("station_id"))
     if kind == "machine_state":
         identifier(document.get("equipment_id"))
-        if payload.get("state") not in {"normal", "warning", "stopped"}:
+        state = payload.get("state")
+        if not isinstance(state, str):
+            raise InvalidEvent("Machine state must be a string.")
+        if state not in {"normal", "warning", "stopped"}:
             raise InvalidEnum("Unsupported machine state.")
         if not isinstance(payload.get("parameters", {}), dict):
             raise InvalidEvent("Machine parameters must be an object.")

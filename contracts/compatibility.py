@@ -7,6 +7,7 @@ v1 -> v2 removal is intentionally reported as breaking, never silently accepted.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 from pathlib import Path
 
@@ -48,9 +49,46 @@ def shape(doc):
         "tags",
     }
 
-    def clean(value):
+    # Keys in these maps are user-defined names, not OpenAPI/schema keywords.
+    named_maps = {
+        "paths",
+        "webhooks",
+        "schemas",
+        "$defs",
+        "definitions",
+        "properties",
+        "patternProperties",
+        "dependentSchemas",
+        "dependencies",
+        "responses",
+        "content",
+        "headers",
+        "securitySchemes",
+        "parameters",
+        "requestBodies",
+        "links",
+        "callbacks",
+        "encoding",
+        "mapping",
+    }
+    literal_values = {
+        "const",
+        "enum",
+        "default",
+        "required",
+        "dependentRequired",
+        "security",
+    }
+
+    def clean(value, *, named=False):
         if isinstance(value, dict):
-            return {k: clean(v) for k, v in value.items() if k not in ignored}
+            return {
+                k: copy.deepcopy(v)
+                if not named and k in literal_values
+                else clean(v, named=not named and k in named_maps)
+                for k, v in value.items()
+                if named or k not in ignored
+            }
         if isinstance(value, list):
             return [clean(v) for v in value]
         return value

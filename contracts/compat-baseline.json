@@ -1060,6 +1060,9 @@
           "defect_ref": {
             "$ref": "#/components/schemas/NullableId"
           },
+          "description": {
+            "type": "string"
+          },
           "component_id": {
             "$ref": "#/components/schemas/NullableId"
           },
@@ -1225,6 +1228,9 @@
               "warning",
               "stopped"
             ]
+          },
+          "description": {
+            "type": "string"
           },
           "parameters": {
             "type": "object",

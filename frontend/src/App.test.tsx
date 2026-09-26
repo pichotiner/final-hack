@@ -24,6 +24,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.mocked(request).mockReset();
   vi.spyOn(window, "confirm").mockReturnValue(true);
+  vi.spyOn(window, "scrollTo").mockImplementation(() => {});
   vi.spyOn(api, "items").mockResolvedValue({ items: [item], next_cursor: null });
   vi.spyOn(api, "item").mockResolvedValue(item);
   vi.spyOn(api, "basis").mockResolvedValue(basis);
@@ -35,7 +36,7 @@ async function prepare() {
   render(<App />);
   await act(async () => { fireEvent.change(screen.getByLabelText(/Bearer token/), { target: { value: "token" } }); });
   await act(async () => { fireEvent.click(screen.getByText("Загрузить изделия")); });
-  await act(async () => { fireEvent.change(screen.getByLabelText("Изделие"), { target: { value: "a" } }); });
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Открыть a" })); });
   await act(async () => { fireEvent.click(screen.getByText("Начать / явно обновить рассмотрение")); });
   await act(async () => {
     fireEvent.change(screen.getByLabelText("Действие"), { target: { value: "rework" } });
@@ -110,11 +111,41 @@ it("shows server line state and does not treat a denied delivery read as an ACK"
   vi.spyOn(api, "line").mockResolvedValue({ line_id: "line-1", computed_at: "2026-09-26T10:00:00Z",
     source_last_received_at: null, unresolved_items: 2, active_operation_run_ids: ["run-live"] });
   vi.spyOn(api, "deliveries").mockRejectedValue(new ApiError("permission_denied", "Нет прав на доставки"));
-  await act(async () => { fireEvent.click(screen.getByText("Состояние линии")); });
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: /Рабочее место ОТК/ })); });
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Состояние линии" })); });
   expect(screen.getByText(/Активные операции: run-live/)).toBeTruthy();
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Обмен с ERP" })); });
   await act(async () => { fireEvent.click(screen.getByText("Проверить доставки ERP")); });
   expect(screen.getByRole("status").textContent).toContain("Нет прав на доставки");
   expect(request).not.toHaveBeenCalled();
+});
+
+it("keeps a pinned decision draft across navigation and only offers item actions", async () => {
+  await prepare();
+  expect(screen.queryByRole("option", { name: "Подтвердить дефект" })).toBeNull();
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Аналитика качества" })); });
+  expect(screen.queryByLabelText("Причина")).toBeNull();
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Изделия" })); });
+  expect((screen.getByLabelText("Причина") as HTMLTextAreaElement).value).toBe("repair");
+  expect(screen.getByText(/Основания закреплены/)).toBeTruthy();
+  expect(request).not.toHaveBeenCalled();
+});
+
+it("filters real items by review state and opens the selected item", async () => {
+  vi.mocked(api.items).mockResolvedValue({ items: [item, { ...item, item_id: "late-item", review_required: true }], next_cursor: null });
+  render(<App />);
+  await act(async () => { fireEvent.change(screen.getByLabelText(/Bearer token/), { target: { value: "token" } }); });
+  await act(async () => { fireEvent.click(screen.getByText("Загрузить изделия")); });
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Пересмотр" })); });
+  expect(screen.queryByRole("button", { name: "Открыть a" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Открыть late-item" })).toBeTruthy();
+  await act(async () => { fireEvent.change(screen.getByLabelText("Поиск изделия"), { target: { value: "no-match" } }); });
+  expect(screen.getByText("Нет изделий по выбранным условиям")).toBeTruthy();
+  await act(async () => { fireEvent.change(screen.getByLabelText("Поиск изделия"), { target: { value: "late" } }); });
+  vi.mocked(api.item).mockResolvedValue({ ...item, item_id: "late-item", review_required: true });
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Открыть late-item" })); });
+  expect(api.item).toHaveBeenCalledWith("late-item", "token");
+  expect(screen.getByText("Требуется пересмотр")).toBeTruthy();
 });
 
 it("a delayed comparison cannot replace the basis opened more recently", async () => {

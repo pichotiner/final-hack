@@ -113,16 +113,20 @@ async function chapter(page, name) {
   if (Number(process.env.QC_SLOW_MS)) await page.waitForTimeout(Number(process.env.QC_SLOW_MS));
 }
 async function openItem(page, item, token = tokens.controller) {
+  if (!await page.getByLabel("Bearer token").isVisible()) await page.locator(".connection-panel > summary").click();
   await page.getByLabel("Bearer token").fill(token);
   await page.getByRole("button", { name: "Загрузить изделия" }).click();
-  await page.getByLabel(/^Изделие/).selectOption(item);
+  await page.getByRole("button", { name: /Рабочее место ОТК/ }).click();
+  await page.getByRole("button", { name: "Все", exact: true }).click();
+  await page.getByLabel("Поиск изделия").fill("");
+  await page.getByRole("button", { name: `Открыть ${item}`, exact: true }).click();
   await page.getByRole("heading", { name: new RegExp(item.replaceAll("-", "\\-")) }).waitFor();
 }
 async function uiCommand(page, item, action, { target = "", reason = "P6 synthetic independent acceptance", fields = {} } = {}) {
   await page.getByRole("button", { name: "Завершить просмотр и сменить цель" }).click();
   await page.getByLabel("Цель").selectOption(target);
   await page.getByRole("button", { name: "Начать / явно обновить рассмотрение" }).click();
-  await page.getByText("B = ", { exact: false }).first().waitFor();
+  await page.getByText("Основания закреплены", { exact: false }).first().waitFor();
   await page.getByLabel("Действие").selectOption(action);
   await page.locator("textarea").first().fill(reason);
   for (const [label, value] of Object.entries(fields)) {
@@ -137,7 +141,7 @@ async function uiCommand(page, item, action, { target = "", reason = "P6 synthet
   const body = await response.json();
   assert(response.status() === 201, `UI ${action}: ${response.status()} ${JSON.stringify(body)}`);
   trace.push({ action: `UI ${action}`, item, target, request: JSON.parse(response.request().postData()), status: response.status(), response: body });
-  await page.getByRole("status").getByText("Результат сервера:", { exact: false }).waitFor();
+  await page.getByRole("status").getByText("Решение сохранено", { exact: false }).waitFor();
   return body;
 }
 async function worker(messageId) {
@@ -161,9 +165,11 @@ try {
   await caseRun("R2-NORMAL / UI + ACK", async () => {
     await seed("assembly-002");
     await openItem(page, "assembly-002");
+    await page.getByRole("button", { name: "Обмен с ERP", exact: true }).click();
     await page.getByRole("button", { name: "Задания ERP" }).click();
     await page.getByRole("table", { name: "Задания ERP" }).waitFor();
     assert((await page.locator("main").innerText()).includes("order-001"), "ERP order missing in UI");
+    await page.getByRole("button", { name: "Изделия", exact: true }).click();
     const released = await uiCommand(page, "assembly-002", "released");
     await chapter(page, "normal-release");
     const current = await state("assembly-002");
@@ -187,8 +193,9 @@ try {
     const item = "assembly-001";
     await seed(item, "defect");
     await openItem(page, item);
+    await page.getByText("Производственная история", { exact: true }).click();
     await page.getByRole("button", { name: "История с обоими временами" }).click();
-    await page.getByRole("table", { name: "История событий" }).getByText("operation_finished").first().waitFor();
+    await page.getByRole("table", { name: "История событий" }).getByText("Операция завершена").first().waitFor();
     const first = await state(item);
     const card = first.nonconformities[0];
     assert(card && card.cause.status === "unresolved", "defect candidate / unresolved cause");
@@ -224,7 +231,6 @@ try {
       "Записи повторного контроля": records[2],
     } });
     const release = await uiCommand(page, item, "released");
-    await page.getByRole("button", { name: "Обновить доставки и ACK" }).isDisabled();
     const final = await state(item);
     eq(final.blockers, expectation("R2-REWORK").blockers, "A04 blockers");
     assert(final.nonconformities[0].resolution_status === "resolved", "resolved card retained");
@@ -254,10 +260,13 @@ try {
     eq(olderSaved.ack.application_status, "superseded", "A09 older version delivered after newer");
     eq(saved.ack.application_status, "applied", "A09 V2 remains current");
     assert(saved.body.disposition_decision.decision_id === release.decision_id, "release basis in ERP");
+    await page.getByRole("button", { name: "Обмен с ERP", exact: true }).click();
+    assert(await page.getByRole("button", { name: "Обновить доставки и ACK" }).isDisabled(), "integration token required");
     await page.getByLabel("Токен интеграции").fill(tokens.integration);
     await page.getByRole("button", { name: "Обновить доставки и ACK" }).click();
     await page.getByRole("table", { name: "Доставки ERP" }).getByText(finalMessage.message_id).waitFor();
-    await page.getByRole("table", { name: "Доставки ERP" }).getByText("acknowledged").first().waitFor();
+    await page.getByRole("table", { name: "Доставки ERP" }).getByText("Подтверждено ERP").first().waitFor();
+    await page.getByRole("button", { name: "Изделия", exact: true }).click();
     await page.getByRole("button", { name: "Завершить просмотр и сменить цель" }).click();
     await page.getByRole("table", { name: "История решений" }).getByText("released").waitFor();
     await page.getByRole("button", { name: b1.basis_id }).first().click();
@@ -460,7 +469,7 @@ try {
     await page.route(`**/api/v2/items/${item}/dispositions`, route);
     try {
       await page.getByRole("button", { name: "Начать / явно обновить рассмотрение" }).click();
-      await page.getByText("B = ", { exact: false }).first().waitFor();
+      await page.getByText("Основания закреплены", { exact: false }).first().waitFor();
       await page.getByLabel("Действие").selectOption("released");
       await page.locator("textarea").first().fill("P6 lost response test");
       await page.getByRole("button", { name: "Отправить отдельную команду" }).click();
@@ -473,7 +482,7 @@ try {
       assert(await retry.isVisible(), "403 must retain unknown outcome and saved body");
       await chapter(page, "unknown-outcome-403");
       await retry.click();
-      await page.getByRole("status").getByText("Результат сервера:", { exact: false }).waitFor();
+      await page.getByRole("status").getByText("Решение сохранено", { exact: false }).waitFor();
       assert(sent.length === 3 && sent.every(x => x === sent[0]), "every UI attempt must send exact same body/key");
       const after = await state(item);
       eq(after.context_revision, first.context_revision, "retry does not bump revision");
@@ -516,6 +525,30 @@ try {
     eq(current.current.body.message_id, v2.message_id, "current V2");
     return { first, older, duplicate, current_message_id: current.current.body.message_id };
   });
+  await caseRun("UI redesign / queue, navigation and responsive layout", async () => {
+    await openItem(page, "assembly-003");
+    await page.getByRole("button", { name: /Рабочее место ОТК/ }).click();
+    await page.getByRole("heading", { name: /Очередь решений/ }).waitFor();
+    await chapter(page, "ui-workspace-desktop");
+    await page.getByRole("button", { name: "Пересмотр", exact: true }).click();
+    assert(!await page.getByRole("button", { name: "Открыть assembly-003", exact: true }).count(), "review filter excludes unrelated item");
+    await page.getByRole("button", { name: "Все", exact: true }).click();
+    await page.getByLabel("Поиск изделия").fill("assembly-003");
+    assert(await page.getByRole("button", { name: /^Открыть / }).count() === 1, "search leaves one item");
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "mobile page has no horizontal overflow");
+    await chapter(page, "ui-workspace-mobile");
+    await page.getByRole("button", { name: "Открыть assembly-003", exact: true }).click();
+    await page.getByRole("heading", { name: "assembly-003", exact: true }).waitFor();
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "mobile item has no horizontal overflow");
+    await chapter(page, "ui-item-mobile");
+    await page.getByRole("button", { name: "Аналитика качества", exact: true }).click();
+    await page.getByRole("heading", { name: "Показатели и причины" }).waitFor();
+    await page.getByRole("button", { name: "Обмен с ERP", exact: true }).click();
+    await page.getByRole("heading", { name: "Производственные задания" }).waitFor();
+    await page.setViewportSize({ width: 1440, height: 900 });
+    return { desktop: "1440x900", mobile: "390x844", queue_filter: true, search: true, navigation: true, no_page_overflow: true };
+  });
   await caseRun("P8 / real credential rotation after committed response loss", async () => {
     const item = "retry-real-assembly-001";
     await seed(item);
@@ -533,7 +566,7 @@ try {
     await page.route(`**${path}`, route);
     try {
       await page.getByRole("button", { name: "Начать / явно обновить рассмотрение" }).click();
-      await page.getByText("B = ", { exact: false }).first().waitFor();
+      await page.getByText("Основания закреплены", { exact: false }).first().waitFor();
       await page.getByLabel("Действие").selectOption("released");
       await page.locator("textarea").first().fill("P8 real credential rotation");
       await page.getByRole("button", { name: "Отправить отдельную команду" }).click();
@@ -575,7 +608,7 @@ try {
       const response = await repeated;
       eq(response.status(), 200, "exact retry returns original receipt");
       eq((await response.json()).decision_id, before.decisions[0].decision_id, "same decision ID");
-      await page.getByRole("status").getByText("Результат сервера:", { exact: false }).waitFor();
+      await page.getByRole("status").getByText("Решение сохранено", { exact: false }).waitFor();
       const after = await get(`/api/v2/items/${item}`, renewed);
       eq(after.decisions.length, 1, "rotation/retry did not add decisions");
       eq(after.context_revision, before.context_revision, "rotation/retry did not bump revision");

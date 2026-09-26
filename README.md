@@ -83,7 +83,7 @@ replay. Граф здесь означает связи данных, отдел
 Общий guard записи и полный replay истории изделия остаются ограничениями;
 горизонтальный рост требует замеров. [ADR](docs/adr/001-core-architecture.md),
 [модель оснований](docs/architecture/evidence-model.md),
-[финальное ревью](docs/final-architecture-review-2026-09-26.md).
+финальное ревью.
 
 ## Реализовано и проверено в P7/P8
 
@@ -176,7 +176,7 @@ ERP/MES/CAD-коннекторы, PQ-криптография и нагрузо�
 - [Требования](docs/requirements.md) и исходные PDF в корне — постановка и критерии.
 - [DP-01](docs/architecture/decision-protocol.md) и [P7](docs/architecture/p7-remediation.md) — предметные решения; [OpenAPI](contracts/openapi.yaml) — транспорт.
 - [Производственный пилот](docs/architecture/enterprise-pilot.md), [камеры и ИИ](docs/architecture/camera-ai-design.md), [границы доверия](docs/architecture/trust-model.md).
-- [Backend](backend/README.md), [эксплуатация](deploy/README.md), [P6/A01–A14](docs/architecture/p6-acceptance-review.md).
+- [Backend](backend/README.md), [эксплуатация](deploy/README.md), [P6/A01–A14](docs/demo/README.md).
 - [Источники обоснования](docs/research/architecture-sources.md), [ранний архитектурный brief](docs/architecture-design-brief.md).
 
 Ранние планы и отчёты P0–P6 сохраняют историю решений; актуальные запуск и статус
