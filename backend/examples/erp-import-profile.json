@@ -1,0 +1,66 @@
+{
+  "profile_id": "role2-bracket-demo",
+  "profile_version": "1",
+  "external_system": "erp-demo",
+  "producer_id": "efqa-demo",
+  "expected_order": {
+    "external_order_id": "order-001",
+    "item_type_id": "bracket-demo",
+    "route_id": "route-bracket",
+    "route_version": "1",
+    "control_plan_version": "1"
+  },
+  "items": {
+    "assembly-001": {
+      "item_id": "assembly-001",
+      "component_mapping": {"bracket-001": "bracket-001", "insert-001": "insert-001"},
+      "context": {
+        "work_order_id": "order-001", "assembly_version": "1",
+        "required_operations": ["run-machining-001", "run-assembly-001"],
+        "controls": [
+          {"checkpoint_id": "incoming-surface", "source_id": "vision-emulator-1", "analyzer_version": "emulator-1", "component_id": "insert-001", "region_id": "face-A", "inspection_phase": "incoming", "control_session_id": "assembly-001-initial-incoming"},
+          {"checkpoint_id": "after-machining", "source_id": "vision-emulator-1", "analyzer_version": "emulator-1", "component_id": "insert-001", "region_id": "face-A", "inspection_phase": "after_operation", "operation_run_id": "run-machining-001", "control_session_id": "assembly-001-initial-machining"},
+          {"checkpoint_id": "final-surface", "source_id": "vision-emulator-1", "analyzer_version": "emulator-1", "component_id": "insert-001", "region_id": "face-A", "inspection_phase": "final", "operation_run_id": "run-assembly-001", "control_session_id": "assembly-001-initial-final"}
+        ],
+        "source_authorities": [
+          {"source_id": "vision-emulator-1", "event_types": ["inspection_observed"]},
+          {"source_id": "line-emulator-1", "event_types": ["item_received", "operation_started", "operation_finished", "operator_action", "machine_state"]}
+        ]
+      }
+    },
+    "assembly-002": {
+      "item_id": "assembly-002",
+      "component_mapping": {"bracket-002": "bracket-002", "insert-002": "insert-002"},
+      "context": {
+        "work_order_id": "order-001", "assembly_version": "1",
+        "required_operations": ["run-machining-002", "run-assembly-002"],
+        "controls": [
+          {"checkpoint_id": "incoming-surface", "source_id": "vision-emulator-1", "analyzer_version": "emulator-1", "component_id": "insert-002", "region_id": "face-A", "inspection_phase": "incoming", "control_session_id": "assembly-002-initial-incoming"},
+          {"checkpoint_id": "after-machining", "source_id": "vision-emulator-1", "analyzer_version": "emulator-1", "component_id": "insert-002", "region_id": "face-A", "inspection_phase": "after_operation", "operation_run_id": "run-machining-002", "control_session_id": "assembly-002-initial-machining"},
+          {"checkpoint_id": "final-surface", "source_id": "vision-emulator-1", "analyzer_version": "emulator-1", "component_id": "insert-002", "region_id": "face-A", "inspection_phase": "final", "operation_run_id": "run-assembly-002", "control_session_id": "assembly-002-initial-final"}
+        ],
+        "source_authorities": [
+          {"source_id": "vision-emulator-1", "event_types": ["inspection_observed"]},
+          {"source_id": "line-emulator-1", "event_types": ["item_received", "operation_started", "operation_finished", "operator_action", "machine_state"]}
+        ]
+      }
+    },
+    "assembly-003": {
+      "item_id": "assembly-003",
+      "component_mapping": {"bracket-003": "bracket-003", "insert-003": "insert-003"},
+      "context": {
+        "work_order_id": "order-001", "assembly_version": "1",
+        "required_operations": ["run-machining-003", "run-assembly-003"],
+        "controls": [
+          {"checkpoint_id": "incoming-surface", "source_id": "vision-emulator-1", "analyzer_version": "emulator-1", "component_id": "insert-003", "region_id": "face-A", "inspection_phase": "incoming", "control_session_id": "assembly-003-initial-incoming"},
+          {"checkpoint_id": "after-machining", "source_id": "vision-emulator-1", "analyzer_version": "emulator-1", "component_id": "insert-003", "region_id": "face-A", "inspection_phase": "after_operation", "operation_run_id": "run-machining-003", "control_session_id": "assembly-003-initial-machining"},
+          {"checkpoint_id": "final-surface", "source_id": "vision-emulator-1", "analyzer_version": "emulator-1", "component_id": "insert-003", "region_id": "face-A", "inspection_phase": "final", "operation_run_id": "run-assembly-003", "control_session_id": "assembly-003-initial-final"}
+        ],
+        "source_authorities": [
+          {"source_id": "vision-emulator-1", "event_types": ["inspection_observed"]},
+          {"source_id": "line-emulator-1", "event_types": ["item_received", "operation_started", "operation_finished", "operator_action", "machine_state"]}
+        ]
+      }
+    }
+  }
+}

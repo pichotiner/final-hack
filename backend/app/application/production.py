@@ -58,6 +58,10 @@ class ProductionService:
             item_id, context, import_id=import_id, actor_id=principal.actor_id
         )
 
+    def import_work_order(self, token, order, mapper):
+        principal = self._require(token, {"integration"})
+        return self.journal.import_work_order(order, mapper, actor_id=principal.actor_id)
+
     def command(self, token: str, method: str, target_id: str, payload: dict):
         roles = {
             "decide_nonconformity": {"controller"},

@@ -217,6 +217,27 @@ quality_state_versions = Table(
     Column("created_at", DateTime(timezone=True), nullable=False),
 )
 
+quality_erp_imports = Table(
+    "quality_erp_imports",
+    metadata,
+    Column("external_system", String(128), primary_key=True),
+    Column("message_id", String(128), primary_key=True),
+    Column("external_order_id", String(128), nullable=False),
+    Column("revision", Integer, nullable=False),
+    Column("content_digest", String(64), nullable=False),
+    Column("profile_id", String(128), nullable=False),
+    Column("profile_version", String(128), nullable=False),
+    Column("profile_digest", String(64), nullable=False),
+    Column("document", JSONB, nullable=False),
+    Column("profile", JSONB, nullable=False),
+    Column("receipt", JSONB, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint(
+        "external_system", "external_order_id", "revision", name="uq_erp_order_revision"
+    ),
+    CheckConstraint("revision >= 1", name="ck_erp_order_revision"),
+)
+
 
 def _values(event: StoredEvent) -> dict:
     meta, envelope, protection = event.metadata, event.metadata.envelope, event.protection

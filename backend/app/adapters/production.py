@@ -1,8 +1,9 @@
 """DP-01 transaction: authenticated raw, traceability, quality, basis and outbox."""
 
 import json
+from contextlib import nullcontext
 from dataclasses import asdict, replace
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from sqlalchemy import select
 
@@ -13,6 +14,7 @@ from app.adapters.postgres import (
     quality_commands,
     quality_constraints,
     quality_context_versions,
+    quality_erp_imports,
     quality_external_streams,
     quality_items,
     raw_events,
@@ -31,10 +33,10 @@ class PostgresProductionJournal(PostgresTraceabilityJournal):
         super().__init__(engine, protector)
         self.quality = PostgresQualityWorkflow(engine)
 
-    def import_context(self, item_id, context, *, import_id, actor_id):
+    def import_context(self, item_id, context, *, import_id, actor_id, connection=None):
         """Import an already mapped canonical context; external parsing is an adapter concern."""
         digest = _digest({"item_id": item_id, "context": asdict(context), "actor_id": actor_id})
-        with self.engine.begin() as connection:
+        with self.engine.begin() if connection is None else nullcontext(connection) as connection:
             production_guard(connection)
             saved = (
                 connection.execute(
@@ -143,6 +145,91 @@ class PostgresProductionJournal(PostgresTraceabilityJournal):
                 )
             )
             return {"status": "accepted", "import_id": import_id}
+
+    def import_work_order(self, order, mapper, *, actor_id):
+        """One complete ERP order, all mapped items and receipt under the P3 writer guard."""
+        mapper.contract.validate("WorkOrder", order)
+        profile = mapper.profile
+        system = profile["external_system"]
+        digest, profile_digest = _digest(order), _digest(profile)
+        with self.engine.begin() as connection:
+            production_guard(connection)
+            saved = (
+                connection.execute(
+                    select(quality_erp_imports).where(
+                        quality_erp_imports.c.external_system == system,
+                        quality_erp_imports.c.message_id == order["message_id"],
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+            if saved:
+                if saved["content_digest"] != digest or saved["profile_digest"] != profile_digest:
+                    raise IdempotencyConflict(
+                        "ERP message ID already has different content or mapping."
+                    )
+                return {**saved["receipt"], "status": "duplicate"}
+            pinned_digest = connection.scalar(
+                select(quality_erp_imports.c.profile_digest)
+                .where(
+                    quality_erp_imports.c.external_system == system,
+                    quality_erp_imports.c.profile_id == profile["profile_id"],
+                    quality_erp_imports.c.profile_version == profile["profile_version"],
+                )
+                .limit(1)
+            )
+            if pinned_digest is not None and pinned_digest != profile_digest:
+                raise IdempotencyConflict("A published mapping profile version cannot change.")
+            latest = connection.scalar(
+                select(quality_erp_imports.c.revision)
+                .where(
+                    quality_erp_imports.c.external_system == system,
+                    quality_erp_imports.c.external_order_id == order["external_order_id"],
+                )
+                .order_by(quality_erp_imports.c.revision.desc())
+                .limit(1)
+            )
+            if latest is not None and order["revision"] <= latest:
+                raise InvalidTransition("ERP order revision must advance with a new message ID.")
+            contexts = mapper.map(order)
+            for item_id, context in contexts.items():
+                import_id = str(
+                    uuid5(NAMESPACE_URL, repr(("erp-import", system, order["message_id"], item_id)))
+                )
+                self.import_context(
+                    item_id, context, import_id=import_id, actor_id=actor_id, connection=connection
+                )
+            now = self._now()
+            receipt = {
+                "status": "accepted",
+                "external_system": system,
+                "message_id": order["message_id"],
+                "external_order_id": order["external_order_id"],
+                "revision": order["revision"],
+                "item_ids": list(contexts),
+                "actor_id": actor_id,
+                "received_at": now.isoformat(),
+                "content_digest": digest,
+                "profile_digest": profile_digest,
+            }
+            connection.execute(
+                quality_erp_imports.insert().values(
+                    external_system=system,
+                    message_id=order["message_id"],
+                    external_order_id=order["external_order_id"],
+                    revision=order["revision"],
+                    content_digest=digest,
+                    profile_id=profile["profile_id"],
+                    profile_version=profile["profile_version"],
+                    profile_digest=profile_digest,
+                    document=order,
+                    profile=profile,
+                    receipt=receipt,
+                    created_at=now,
+                )
+            )
+            return receipt
 
     def _backfill(self, connection, item_id):
         projected = set(

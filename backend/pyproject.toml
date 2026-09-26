@@ -12,6 +12,7 @@ dependencies = [
     "uvicorn>=0.34,<1",
     "httpx>=0.28,<1",
     "jsonschema>=4.23,<5",
+    "PyYAML>=6,<7",
     "alembic>=1.16,<2",
     "cryptography>=46,<49",
     "psycopg[binary]>=3.2,<4",

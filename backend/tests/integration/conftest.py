@@ -64,6 +64,9 @@ def database():
                 text(f'GRANT SELECT, INSERT ON quality_context_versions TO "{writer_role}"')
             )
             connection.execute(
+                text(f'GRANT SELECT, INSERT ON quality_erp_imports TO "{writer_role}"')
+            )
+            connection.execute(
                 text(
                     f"GRANT SELECT, INSERT ON quality_state_versions, "
                     f'quality_external_streams TO "{writer_role}"'

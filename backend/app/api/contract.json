@@ -111,6 +111,8 @@
           "work_order_id": {"$ref": "#/components/schemas/Id"},
           "work_order_version": {"$ref": "#/components/schemas/Id"},
           "route_version": {"$ref": "#/components/schemas/Id"},
+          "route_id": {"$ref": "#/components/schemas/NullableId"},
+          "control_plan_version": {"$ref": "#/components/schemas/NullableId"},
           "assembly_version": {"$ref": "#/components/schemas/Id"},
           "mapping_version": {"$ref": "#/components/schemas/Id"},
           "external_system": {"$ref": "#/components/schemas/Id"},

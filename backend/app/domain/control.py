@@ -77,6 +77,8 @@ class ProductionContext:
     component_ids: tuple[str, ...] = ()
     producer_id: str = "efqa-demonstrator"
     rules_version: str = "quality-v2"
+    route_id: str | None = None
+    control_plan_version: str | None = None
 
     def __post_init__(self):
         for name in (

@@ -74,6 +74,7 @@ def migrate():
             connection.execute(
                 text("""GRANT SELECT, INSERT ON raw_events,
                 item_projection_versions, quality_bases, quality_commands, quality_decisions,
+                quality_erp_imports,
                 quality_context_versions, quality_state_versions, quality_external_streams
                 TO qc_app""")
             )
