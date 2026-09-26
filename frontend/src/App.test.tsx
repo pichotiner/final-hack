@@ -116,3 +116,28 @@ it("shows server line state and does not treat a denied delivery read as an ACK"
   expect(screen.getByRole("status").textContent).toContain("Нет прав на доставки");
   expect(request).not.toHaveBeenCalled();
 });
+
+it("a delayed comparison cannot replace the basis opened more recently", async () => {
+  vi.mocked(api.item).mockResolvedValue({ ...item, decisions: [3, 4].map(revision => ({
+    decision_id: `d${revision}`, target_id: "a", action: "rework" as const, reason: "repair",
+    actor_id: "controller-1", basis_id: `b${revision}`, control_cycle_id: "c1",
+    reviewed_revision: revision, context_revision: revision + 1,
+    created_at: "2026-09-26T10:00:00Z", supersedes_id: null,
+  })) });
+  await prepare();
+  let complete!: (value: Basis) => void;
+  vi.mocked(api.basis).mockReturnValueOnce(new Promise(resolve => { complete = resolve; }));
+  await act(async () => {
+    fireEvent.change(screen.getByLabelText("Предыдущее основание из истории решений"), { target: { value: "b4" } });
+    fireEvent.click(screen.getByText("Открыть сохранённое основание"));
+  });
+  vi.mocked(api.basis).mockResolvedValueOnce({ ...basis, basis_id: "b3", context_revision: 3 });
+  await act(async () => {
+    fireEvent.change(screen.getByLabelText("Предыдущее основание из истории решений"), { target: { value: "b3" } });
+    fireEvent.click(screen.getByText("Открыть сохранённое основание"));
+  });
+  await act(async () => { complete({ ...basis, basis_id: "b4", context_revision: 4 }); });
+  expect(screen.getByText("Сохранённое основание решения b3")).toBeTruthy();
+  expect(screen.queryByText("Сохранённое основание решения b4")).toBeNull();
+  expect(request).not.toHaveBeenCalled();
+});

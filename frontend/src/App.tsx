@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import { api, ApiError, request, verifyCommandReceipt, type Basis, type Item, type ReviewCommand, type DispositionCommand, type ResolutionCommand, type CycleCommand, type RecoveryCommand, type ScopeCommand } from "./api";
 import { basisDiff, initialState, reviewReducer, type SavedCommand } from "./review-state";
+import { BasisExplanation, SuggestedChecks } from "./BasisExplanation";
 import { AnalyticsPanel } from "./AnalyticsPanel";
 
 const actions: Record<string, string> = { confirm: "Подтвердить дефект", reject: "Отклонить ложный признак", request_check: "Запросить проверку", resolve: "Зафиксировать устранение", reopen: "Открыть дефект повторно", rework: "Назначить доработку", released: "Разрешить выпуск", rejected: "Отклонить изделие", cycle: "Открыть цикл повторного контроля", bind_control: "Исправить привязку контроля", replace_control: "Заменить плохой контроль повторным", scope: "Разрешить ограничение области" };
@@ -36,6 +37,8 @@ export default function App() {
   const [constraint, setConstraint] = useState("");
   const inFlight = useRef(false);
   const reviewRequest = useRef(0);
+  const comparisonGeneration = useRef(0);
+  const comparisonReads = useRef({ old: 0, new: 0 });
   const [oldBasis, setOldBasis] = useState<Basis | null>(null);
   const [oldBasisId, setOldBasisId] = useState("");
   const [newBasis, setNewBasis] = useState<Basis | null>(null);
@@ -49,6 +52,24 @@ export default function App() {
   const stale = pinned !== null && review.latestRevision !== pinned.item.context_revision;
 
   const error = (value: unknown) => setMessage(value instanceof Error ? value.message : String(value));
+  useEffect(() => {
+    comparisonGeneration.current += 1;
+    setOldBasis(null); setNewBasis(null); setOldBasisId("");
+  }, [selected, token, target]);
+
+  async function loadComparison(id: string, side: "old" | "new") {
+    const generation = comparisonGeneration.current;
+    const requestId = ++comparisonReads.current[side];
+    try {
+      const value = await api.basis(id, token);
+      if (generation !== comparisonGeneration.current || requestId !== comparisonReads.current[side]) return;
+      if (value.item_id !== selected || value.basis_id !== id) throw new Error("Получено основание другого изделия или с другим ID");
+      if (side === "old") { setOldBasis(value); setOldBasisId(value.basis_id); }
+      else setNewBasis(value);
+    } catch (e) {
+      if (generation === comparisonGeneration.current && requestId === comparisonReads.current[side]) error(e);
+    }
+  }
   async function refresh() {
     try { const identity = await api.session(token); setActorId(identity.actor_id); setItems((await api.items(token)).items); } catch (e) { error(e); }
   }
@@ -193,7 +214,8 @@ export default function App() {
   }
 
   const displayed = pinned?.item ?? latest;
-  const diff = oldBasis && newBasis ? basisDiff(oldBasis, newBasis) : null;
+  const diff = oldBasis && newBasis && oldBasis.item_id === newBasis.item_id && oldBasis.target_id === newBasis.target_id
+    && oldBasis.context_revision <= newBasis.context_revision ? basisDiff(oldBasis, newBasis) : null;
   const records = [...new Map((pinned?.item.observations ?? []).filter(o => o.record_id).map(o => [o.record_id!, o])).values()];
   const recordLabel = (o: typeof records[number]) => `${o.checkpoint_id} · ${o.occurred_at ?? "время неизвестно"} · ${o.effective_result} · ${o.record_id}`;
   return <main>
@@ -234,6 +256,7 @@ export default function App() {
         {pinned && <><p>B = {pinned.basis.basis_id}; revision = {pinned.basis.context_revision}; цель {pinned.targetId ?? "изделие"}</p>
           <table><thead><tr><th>Record / признак</th><th>Компонент / область</th><th>Метод</th><th>Результат контроля</th></tr></thead><tbody>{pinned.basis.analysis_snapshot.observations.map(obs => <tr key={obs.observation_id}><td>{obs.record_id} / {obs.defect_index ?? "контроль без признака"}</td><td>{obs.component_id ?? "неизвестно"} / {obs.region_id ?? "неизвестно"}</td><td>{obs.analyzer_version ?? "неизвестно"}</td><td>{obs.result} → {obs.effective_result}</td></tr>)}</tbody></table>
           <details><summary>Полное сохранённое основание B</summary><pre>{JSON.stringify(pinned.basis, null, 2)}</pre></details>
+          <SuggestedChecks basis={pinned.basis} />
           {(pinned.basis.analysis_snapshot.circumstances ?? []).filter(c => !pinned.targetId || c.nonconformity_id === pinned.targetId).map(c => <article key={c.nonconformity_id}><h3>Разбор обстоятельств дефекта</h3><p>Сопоставление: компонент {c.comparison?.component_id ?? "неизвестен"}, область {c.comparison?.region_id ?? "неизвестна"}, метод {c.comparison?.method_version ?? "неизвестен"}.</p><p>До: {c.before_record_id ?? "нет сопоставимого контроля"}; после: {c.after_record_id ?? "нет пригодного осмотра"}.</p><p>Операции интервала: {c.operation_run_ids.join(", ") || "не установлены"}</p><ul>{c.alternatives.map((a, i) => <li key={i}>{a.explanation} Основания: {a.record_ids.join(", ") || "нет"}</li>)}</ul><ul>{c.limitations.map(l => <li key={l}>{l}</li>)}</ul>{c.related_events.map(e => <p key={e.record_id}>{e.occurred_at} · {e.event_type} · {e.equipment_id ?? e.operator_id} · запись {e.record_id}</p>)}</article>)}
           <label>Действие<select value={kind} disabled={locked} onChange={e => setKind(e.target.value)}>{Object.entries(actions).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
           <label>Причина<textarea value={reason} disabled={locked} onChange={e => setReason(e.target.value)} /></label>
@@ -258,10 +281,14 @@ export default function App() {
       </section>
       <section><h2>Тогда / сейчас</h2><p>Изменение оснований — не установленная физическая причина.</p>
         <label>Предыдущее основание из истории решений<select value={oldBasisId} onChange={e => setOldBasisId(e.target.value)}><option value="">Выбрать решение</option>{displayed.decisions.map(d => <option key={d.decision_id} value={d.basis_id}>{actions[d.action] ?? d.action} · {d.reason} · {d.basis_id}</option>)}</select></label>
-        <button onClick={() => api.basis(oldBasisId, token).then(value => { if (value.item_id !== selected) throw new Error("Основание относится к другому изделию"); setOldBasis(value); }).catch(error)}>Открыть сохранённое основание</button>
-        <button onClick={() => latest && api.basis(target ? latest.nonconformities.find(x => x.id === target)?.basis_id ?? latest.basis_id : latest.basis_id, token).then(setNewBasis).catch(error)}>Сравнить с текущим B (форма не меняется)</button>
-        {diff && <pre>{JSON.stringify({ diff, then: oldBasis, now: newBasis }, null, 2)}</pre>}
-        <h3>Решения</h3><table aria-label="История решений"><thead><tr><th>Решение</th><th>Автор / причина</th><th>Основание тогда</th></tr></thead><tbody>{displayed.decisions.map(decision => <tr key={decision.decision_id}><td>{decision.action}<br />{decision.decision_id}</td><td>{decision.actor_id}<br />{decision.reason}</td><td><button onClick={() => api.basis(decision.basis_id, token).then(value => { setOldBasis(value); setOldBasisId(value.basis_id); }).catch(error)}>{decision.basis_id}</button></td></tr>)}</tbody></table>
+        <button onClick={() => void loadComparison(oldBasisId, "old")}>Открыть сохранённое основание</button>
+        <button onClick={() => {
+          const id = target ? latest?.nonconformities.find(x => x.id === target)?.basis_id : latest?.basis_id;
+          if (id) void loadComparison(id, "new"); else setMessage("Нет текущего B выбранной цели");
+        }}>Сравнить с текущим B (форма не меняется)</button>
+        {oldBasis && newBasis && <BasisExplanation before={oldBasis} after={newBasis} />}
+        {diff && <details><summary>Подробные различия исходников</summary><pre>{JSON.stringify(diff, null, 2)}</pre></details>}
+        <h3>Решения</h3><table aria-label="История решений"><thead><tr><th>Решение</th><th>Автор / причина</th><th>Основание тогда</th></tr></thead><tbody>{displayed.decisions.map(decision => <tr key={decision.decision_id}><td>{decision.action}<br />{decision.decision_id}</td><td>{decision.actor_id}<br />{decision.reason}</td><td><button onClick={() => void loadComparison(decision.basis_id, "old")}>{decision.basis_id}</button></td></tr>)}</tbody></table>
         {oldBasis && <details><summary>Сохранённое основание решения {oldBasis.basis_id}</summary><pre>{JSON.stringify(oldBasis, null, 2)}</pre></details>}
         <details><summary>Полные квитанции решений</summary><pre>{JSON.stringify(displayed.decisions, null, 2)}</pre></details>
       </section>

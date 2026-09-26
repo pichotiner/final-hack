@@ -1,0 +1,253 @@
+{
+  "status": "SYNTHETIC_RULES_EXPERIMENT_NOT_RUNTIME",
+  "excluded": "improvement_7_shadow_analyzer",
+  "self_diagnosis": {
+    "ready": {
+      "station": "post-1",
+      "evidence_id": "health-1",
+      "status": "ready",
+      "issues": []
+    },
+    "covered_camera": {
+      "station": "post-1",
+      "evidence_id": "health-1",
+      "status": "unavailable",
+      "issues": [
+        "focus"
+      ]
+    },
+    "expired": {
+      "station": "post-1",
+      "evidence_id": "health-1",
+      "status": "unavailable",
+      "issues": [
+        "expired"
+      ]
+    }
+  },
+  "tool_passport": {
+    "run_id": "run-B",
+    "tool": "tool-new",
+    "possible_tools": [
+      "tool-new"
+    ],
+    "evidence_ids": [
+      "install-1"
+    ],
+    "status": "exact",
+    "baseline_applicable": false
+  },
+  "lot_quarantine_proposal": {
+    "lot": "lot-1",
+    "exact": [
+      "A",
+      "part"
+    ],
+    "possible": [
+      "B"
+    ],
+    "coverage": "complete",
+    "action": "propose_check",
+    "confirmed_defects_created": 0
+  },
+  "next_check": {
+    "status": "suggestion",
+    "methods": [
+      {
+        "method_id": "ultrasound",
+        "version": "1",
+        "worst_remaining_hypotheses": 2,
+        "effort_minutes": 10,
+        "outcome_groups": {
+          "normal": [
+            "assembly",
+            "geometry"
+          ],
+          "echo": [
+            "material"
+          ]
+        }
+      }
+    ]
+  },
+  "handoff": {
+    "handoff_id": "handoff-1",
+    "actor": "master-2",
+    "accepted_at": "2026-09-26T10:01:00+00:00",
+    "accepted": [
+      "alarm",
+      "command",
+      "delivery"
+    ],
+    "not_transferred": [],
+    "ages_seconds": {
+      "alarm": 60.0,
+      "command": 60.0,
+      "delivery": 60.0
+    }
+  },
+  "alarms_before_ack": {
+    "episodes": {
+      "warning-1": {
+        "key": [
+          "sensor",
+          "M1",
+          "vibration",
+          "rule-v1",
+          "run-B"
+        ],
+        "acknowledged": false,
+        "recovered": false,
+        "closed": false,
+        "evidence": [
+          "event-1"
+        ]
+      },
+      "warning-2": {
+        "key": [
+          "sensor",
+          "M1",
+          "coolant",
+          "rule-v1",
+          "run-B"
+        ],
+        "acknowledged": false,
+        "recovered": false,
+        "closed": false,
+        "evidence": [
+          "event-2"
+        ]
+      }
+    },
+    "active": [
+      "warning-1",
+      "warning-2"
+    ],
+    "sound_tokens": [
+      "warning-1",
+      "warning-2"
+    ],
+    "light": "yellow",
+    "meaning": "monitoring_only_not_release"
+  },
+  "alarms_after_ack": {
+    "episodes": {
+      "warning-1": {
+        "key": [
+          "sensor",
+          "M1",
+          "vibration",
+          "rule-v1",
+          "run-B"
+        ],
+        "acknowledged": true,
+        "recovered": false,
+        "closed": false,
+        "evidence": [
+          "event-1"
+        ]
+      },
+      "warning-2": {
+        "key": [
+          "sensor",
+          "M1",
+          "coolant",
+          "rule-v1",
+          "run-B"
+        ],
+        "acknowledged": false,
+        "recovered": false,
+        "closed": false,
+        "evidence": [
+          "event-2"
+        ]
+      }
+    },
+    "active": [
+      "warning-1",
+      "warning-2"
+    ],
+    "sound_tokens": [
+      "warning-2"
+    ],
+    "light": "yellow",
+    "meaning": "monitoring_only_not_release"
+  },
+  "offline_monitoring": {
+    "episodes": {
+      "warning-1": {
+        "key": [
+          "sensor",
+          "M1",
+          "vibration",
+          "rule-v1",
+          "run-B"
+        ],
+        "acknowledged": false,
+        "recovered": false,
+        "closed": false,
+        "evidence": [
+          "event-1"
+        ]
+      }
+    },
+    "active": [
+      "warning-1"
+    ],
+    "sound_tokens": [],
+    "light": "unavailable",
+    "meaning": "monitoring_only_not_release"
+  },
+  "ewma": [
+    {
+      "event_id": "window-0",
+      "status": "normal",
+      "ewma": 1.03
+    },
+    {
+      "event_id": "window-1",
+      "status": "normal",
+      "ewma": 1.111
+    },
+    {
+      "event_id": "window-2",
+      "status": "normal",
+      "ewma": 1.2277
+    },
+    {
+      "event_id": "window-3",
+      "status": "warning",
+      "ewma": 1.3393899999999999
+    }
+  ],
+  "exposure_before": {
+    "exact": [
+      "B"
+    ],
+    "possible": [],
+    "coverage": "complete",
+    "issue": null
+  },
+  "exposure_after": {
+    "exact": [
+      "A",
+      "B"
+    ],
+    "possible": [],
+    "coverage": "complete",
+    "issue": null
+  },
+  "stage_map": [
+    {
+      "cohort": "steel/P1/v1",
+      "stage": "machining",
+      "processed": 2,
+      "assessable": 1,
+      "detected": 1,
+      "origin_established": 0,
+      "coverage": 0.5,
+      "discovery_rate": 1.0,
+      "established_origin_rate": 0.0
+    }
+  ]
+}
