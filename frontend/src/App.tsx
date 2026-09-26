@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import { api, ApiError, request, verifyCommandReceipt, type Basis, type Item, type ReviewCommand, type DispositionCommand, type ResolutionCommand, type CycleCommand } from "./api";
 import { basisDiff, initialState, reviewReducer, type SavedCommand } from "./review-state";
+import { BasisExplanation, SuggestedChecks } from "./BasisExplanation";
 
 const ids = (value: string) => value.split(",").map(x => x.trim()).filter(Boolean);
 
@@ -23,6 +24,8 @@ export default function App() {
   const [bindings, setBindings] = useState("{}");
   const inFlight = useRef(false);
   const reviewRequest = useRef(0);
+  const comparisonGeneration = useRef(0);
+  const comparisonReads = useRef({ old: 0, new: 0 });
   const [oldBasis, setOldBasis] = useState<Basis | null>(null);
   const [oldBasisId, setOldBasisId] = useState("");
   const [newBasis, setNewBasis] = useState<Basis | null>(null);
@@ -37,6 +40,24 @@ export default function App() {
   const stale = pinned !== null && review.latestRevision !== pinned.item.context_revision;
 
   const error = (value: unknown) => setMessage(value instanceof Error ? value.message : String(value));
+  useEffect(() => {
+    comparisonGeneration.current += 1;
+    setOldBasis(null); setNewBasis(null); setOldBasisId("");
+  }, [selected, token, target]);
+
+  async function loadComparison(id: string, side: "old" | "new") {
+    const generation = comparisonGeneration.current;
+    const requestId = ++comparisonReads.current[side];
+    try {
+      const value = await api.basis(id, token);
+      if (generation !== comparisonGeneration.current || requestId !== comparisonReads.current[side]) return;
+      if (value.item_id !== selected || value.basis_id !== id) throw new Error("Получено основание другого изделия или с другим ID");
+      if (side === "old") { setOldBasis(value); setOldBasisId(value.basis_id); }
+      else setNewBasis(value);
+    } catch (e) {
+      if (generation === comparisonGeneration.current && requestId === comparisonReads.current[side]) error(e);
+    }
+  }
   async function refresh() {
     try { setItems((await api.items(token)).items); } catch (e) { error(e); }
   }
@@ -151,7 +172,8 @@ export default function App() {
   }
 
   const displayed = pinned?.item ?? latest;
-  const diff = oldBasis && newBasis ? basisDiff(oldBasis, newBasis) : null;
+  const diff = oldBasis && newBasis && oldBasis.item_id === newBasis.item_id && oldBasis.target_id === newBasis.target_id
+    && oldBasis.context_revision <= newBasis.context_revision ? basisDiff(oldBasis, newBasis) : null;
   return <main>
     <header><h1>EFQA · основания решения</h1><p>DP-01 / API v2 · работа с готовыми наблюдениями, отдельное решение ОТК</p></header>
     <section><label>Bearer token (только память вкладки)<input type="password" value={token} disabled={locked} onChange={e => { setToken(e.target.value); setSelected(""); setLatest(null); setItems([]); setOrders(null); setLine(null); setDeliveryToken(""); setDeliveries(null); setCounts(null); clearReview(); }} /></label>
@@ -190,6 +212,7 @@ export default function App() {
         {pinned && <><p>B = {pinned.basis.basis_id}; revision = {pinned.basis.context_revision}; цель {pinned.targetId ?? "изделие"}</p>
           <table><thead><tr><th>Record / признак</th><th>Компонент / область</th><th>Метод</th><th>Результат контроля</th></tr></thead><tbody>{pinned.basis.analysis_snapshot.observations.map(obs => <tr key={obs.observation_id}><td>{obs.record_id} / {obs.defect_index ?? "контроль без признака"}</td><td>{obs.component_id ?? "неизвестно"} / {obs.region_id ?? "неизвестно"}</td><td>{obs.analyzer_version ?? "неизвестно"}</td><td>{obs.result} → {obs.effective_result}</td></tr>)}</tbody></table>
           <details><summary>Полное сохранённое основание B</summary><pre>{JSON.stringify(pinned.basis, null, 2)}</pre></details>
+          <SuggestedChecks basis={pinned.basis} />
           <label>Действие<select value={kind} disabled={locked} onChange={e => setKind(e.target.value)}>{["confirm", "reject", "request_check", "resolve", "reopen", "rework", "released", "rejected", "cycle"].map(x => <option key={x}>{x}</option>)}</select></label>
           <label>Причина<textarea value={reason} disabled={locked} onChange={e => setReason(e.target.value)} /></label>
           {(kind === "resolve" || kind === "cycle") && <label>Run ID доработки / планируемые run через запятую<input value={run} disabled={locked} onChange={e => setRun(e.target.value)} /></label>}
@@ -204,10 +227,14 @@ export default function App() {
       </section>
       <section><h2>Тогда / сейчас</h2><p>Изменение оснований — не установленная физическая причина.</p>
         <label>Предыдущее basis_id из истории решений<input value={oldBasisId} onChange={e => setOldBasisId(e.target.value)} /></label>
-        <button onClick={() => api.basis(oldBasisId, token).then(value => { if (value.item_id !== selected) throw new Error("Основание относится к другому изделию"); setOldBasis(value); }).catch(error)}>Открыть сохранённое основание</button>
-        <button onClick={() => latest && api.basis(target ? latest.nonconformities.find(x => x.id === target)?.basis_id ?? latest.basis_id : latest.basis_id, token).then(setNewBasis).catch(error)}>Сравнить с текущим B (форма не меняется)</button>
-        {diff && <pre>{JSON.stringify({ diff, then: oldBasis, now: newBasis }, null, 2)}</pre>}
-        <h3>Решения</h3><table aria-label="История решений"><thead><tr><th>Решение</th><th>Автор / причина</th><th>Основание тогда</th></tr></thead><tbody>{displayed.decisions.map(decision => <tr key={decision.decision_id}><td>{decision.action}<br />{decision.decision_id}</td><td>{decision.actor_id}<br />{decision.reason}</td><td><button onClick={() => api.basis(decision.basis_id, token).then(value => { setOldBasis(value); setOldBasisId(value.basis_id); }).catch(error)}>{decision.basis_id}</button></td></tr>)}</tbody></table>
+        <button onClick={() => void loadComparison(oldBasisId, "old")}>Открыть сохранённое основание</button>
+        <button onClick={() => {
+          const id = target ? latest?.nonconformities.find(x => x.id === target)?.basis_id : latest?.basis_id;
+          if (id) void loadComparison(id, "new"); else setMessage("Нет текущего B выбранной цели");
+        }}>Сравнить с текущим B (форма не меняется)</button>
+        {oldBasis && newBasis && <BasisExplanation before={oldBasis} after={newBasis} />}
+        {diff && <details><summary>Подробные различия исходников</summary><pre>{JSON.stringify(diff, null, 2)}</pre></details>}
+        <h3>Решения</h3><table aria-label="История решений"><thead><tr><th>Решение</th><th>Автор / причина</th><th>Основание тогда</th></tr></thead><tbody>{displayed.decisions.map(decision => <tr key={decision.decision_id}><td>{decision.action}<br />{decision.decision_id}</td><td>{decision.actor_id}<br />{decision.reason}</td><td><button onClick={() => void loadComparison(decision.basis_id, "old")}>{decision.basis_id}</button></td></tr>)}</tbody></table>
         {oldBasis && <details><summary>Сохранённое основание решения {oldBasis.basis_id}</summary><pre>{JSON.stringify(oldBasis, null, 2)}</pre></details>}
         <details><summary>Полные квитанции решений</summary><pre>{JSON.stringify(displayed.decisions, null, 2)}</pre></details>
       </section>
