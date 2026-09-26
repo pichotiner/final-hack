@@ -1,0 +1,174 @@
+<!doctype html><html lang="ru"><meta charset="utf-8">
+<title>PI-01 — синтетический эксперимент</title>
+<style>body{font:17px system-ui;max-width:1100px;margin:30px auto;padding:16px;color:#142b45}
+section{border:1px solid #aac1d2;padding:18px;margin:18px 0;border-radius:10px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px}button{padding:12px;margin:5px}
+.lamp{display:inline-block;width:22px;height:22px;border-radius:50%;background:#d29000;margin-right:10px}
+.unavailable{background:#727d87}.notice{background:#fff0cc;padding:16px}</style>
+<h1>Улучшения 1–6: исполняемый пример</h1>
+<p class="notice">СИНТЕТИЧЕСКИЙ ЭКСПЕРИМЕНТ. Результаты чистых правил, без производственной БД,
+назначения карантина или передачи реальной смены. Свет и звук ниже — браузерная имитация.
+Пункт 7 исключён. Пункт 8 подключён отдельно в основном UI к настоящим B.</p>
+<section><h2>Тревоги и сигнализация</h2>
+<p id="state" role="status"></p>
+<button id="sound">Разрешить короткий звук текущих эпизодов</button>
+<button id="ack">Увидел warning-1 / заглушить</button>
+<button id="offline">Потерять связь мониторинга</button>
+<p>100 дублей дают один эпизод вибрации; охлаждение — отдельная проблема.
+ACK первого не закрывает ни один эпизод. Звук разрешается только кнопкой.
+Память услышанных эпизодов хранится лишь до закрытия страницы.</p><pre id="alarm"></pre></section>
+<section><h2>Готовность поста</h2><pre>{
+  &quot;ready&quot;: {
+    &quot;station&quot;: &quot;post-1&quot;,
+    &quot;evidence_id&quot;: &quot;health-1&quot;,
+    &quot;status&quot;: &quot;ready&quot;,
+    &quot;issues&quot;: []
+  },
+  &quot;covered_camera&quot;: {
+    &quot;station&quot;: &quot;post-1&quot;,
+    &quot;evidence_id&quot;: &quot;health-1&quot;,
+    &quot;status&quot;: &quot;unavailable&quot;,
+    &quot;issues&quot;: [
+      &quot;focus&quot;
+    ]
+  },
+  &quot;expired&quot;: {
+    &quot;station&quot;: &quot;post-1&quot;,
+    &quot;evidence_id&quot;: &quot;health-1&quot;,
+    &quot;status&quot;: &quot;unavailable&quot;,
+    &quot;issues&quot;: [
+      &quot;expired&quot;
+    ]
+  }
+}</pre></section><section><h2>Паспорт инструмента</h2><pre>{
+  &quot;run_id&quot;: &quot;run-B&quot;,
+  &quot;tool&quot;: &quot;tool-new&quot;,
+  &quot;possible_tools&quot;: [
+    &quot;tool-new&quot;
+  ],
+  &quot;evidence_ids&quot;: [
+    &quot;install-1&quot;
+  ],
+  &quot;status&quot;: &quot;exact&quot;,
+  &quot;baseline_applicable&quot;: false
+}</pre></section><section><h2>Предложение карантина партии</h2><pre>{
+  &quot;lot&quot;: &quot;lot-1&quot;,
+  &quot;exact&quot;: [
+    &quot;A&quot;,
+    &quot;part&quot;
+  ],
+  &quot;possible&quot;: [
+    &quot;B&quot;
+  ],
+  &quot;coverage&quot;: &quot;complete&quot;,
+  &quot;action&quot;: &quot;propose_check&quot;,
+  &quot;confirmed_defects_created&quot;: 0
+}</pre></section><section><h2>Следующий полезный контроль</h2><pre>{
+  &quot;status&quot;: &quot;suggestion&quot;,
+  &quot;methods&quot;: [
+    {
+      &quot;method_id&quot;: &quot;ultrasound&quot;,
+      &quot;version&quot;: &quot;1&quot;,
+      &quot;worst_remaining_hypotheses&quot;: 2,
+      &quot;effort_minutes&quot;: 10,
+      &quot;outcome_groups&quot;: {
+        &quot;normal&quot;: [
+          &quot;assembly&quot;,
+          &quot;geometry&quot;
+        ],
+        &quot;echo&quot;: [
+          &quot;material&quot;
+        ]
+      }
+    }
+  ]
+}</pre></section><section><h2>Передача смены</h2><pre>{
+  &quot;handoff_id&quot;: &quot;handoff-1&quot;,
+  &quot;actor&quot;: &quot;master-2&quot;,
+  &quot;accepted_at&quot;: &quot;2026-09-26T10:01:00+00:00&quot;,
+  &quot;accepted&quot;: [
+    &quot;alarm&quot;,
+    &quot;command&quot;,
+    &quot;delivery&quot;
+  ],
+  &quot;not_transferred&quot;: [],
+  &quot;ages_seconds&quot;: {
+    &quot;alarm&quot;: 60.0,
+    &quot;command&quot;: 60.0,
+    &quot;delivery&quot;: 60.0
+  }
+}</pre></section><section><h2>Раннее предупреждение EWMA</h2><pre>[
+  {
+    &quot;event_id&quot;: &quot;window-0&quot;,
+    &quot;status&quot;: &quot;normal&quot;,
+    &quot;ewma&quot;: 1.03
+  },
+  {
+    &quot;event_id&quot;: &quot;window-1&quot;,
+    &quot;status&quot;: &quot;normal&quot;,
+    &quot;ewma&quot;: 1.111
+  },
+  {
+    &quot;event_id&quot;: &quot;window-2&quot;,
+    &quot;status&quot;: &quot;normal&quot;,
+    &quot;ewma&quot;: 1.2277
+  },
+  {
+    &quot;event_id&quot;: &quot;window-3&quot;,
+    &quot;status&quot;: &quot;warning&quot;,
+    &quot;ewma&quot;: 1.3393899999999999
+  }
+]</pre></section><section><h2>Охват до позднего сигнала</h2><pre>{
+  &quot;exact&quot;: [
+    &quot;B&quot;
+  ],
+  &quot;possible&quot;: [],
+  &quot;coverage&quot;: &quot;complete&quot;,
+  &quot;issue&quot;: null
+}</pre></section><section><h2>Охват после позднего сигнала</h2><pre>{
+  &quot;exact&quot;: [
+    &quot;A&quot;,
+    &quot;B&quot;
+  ],
+  &quot;possible&quot;: [],
+  &quot;coverage&quot;: &quot;complete&quot;,
+  &quot;issue&quot;: null
+}</pre></section><section><h2>Карта этапов</h2><pre>[
+  {
+    &quot;cohort&quot;: &quot;steel/P1/v1&quot;,
+    &quot;stage&quot;: &quot;machining&quot;,
+    &quot;processed&quot;: 2,
+    &quot;assessable&quot;: 1,
+    &quot;detected&quot;: 1,
+    &quot;origin_established&quot;: 0,
+    &quot;coverage&quot;: 0.5,
+    &quot;discovery_rate&quot;: 1.0,
+    &quot;established_origin_rate&quot;: 0.0
+  }
+]</pre></section><script>
+const report = {"status": "SYNTHETIC_RULES_EXPERIMENT_NOT_RUNTIME", "excluded": "improvement_7_shadow_analyzer", "self_diagnosis": {"ready": {"station": "post-1", "evidence_id": "health-1", "status": "ready", "issues": []}, "covered_camera": {"station": "post-1", "evidence_id": "health-1", "status": "unavailable", "issues": ["focus"]}, "expired": {"station": "post-1", "evidence_id": "health-1", "status": "unavailable", "issues": ["expired"]}}, "tool_passport": {"run_id": "run-B", "tool": "tool-new", "possible_tools": ["tool-new"], "evidence_ids": ["install-1"], "status": "exact", "baseline_applicable": false}, "lot_quarantine_proposal": {"lot": "lot-1", "exact": ["A", "part"], "possible": ["B"], "coverage": "complete", "action": "propose_check", "confirmed_defects_created": 0}, "next_check": {"status": "suggestion", "methods": [{"method_id": "ultrasound", "version": "1", "worst_remaining_hypotheses": 2, "effort_minutes": 10, "outcome_groups": {"normal": ["assembly", "geometry"], "echo": ["material"]}}]}, "handoff": {"handoff_id": "handoff-1", "actor": "master-2", "accepted_at": "2026-09-26T10:01:00+00:00", "accepted": ["alarm", "command", "delivery"], "not_transferred": [], "ages_seconds": {"alarm": 60.0, "command": 60.0, "delivery": 60.0}}, "alarms_before_ack": {"episodes": {"warning-1": {"key": ["sensor", "M1", "vibration", "rule-v1", "run-B"], "acknowledged": false, "recovered": false, "closed": false, "evidence": ["event-1"]}, "warning-2": {"key": ["sensor", "M1", "coolant", "rule-v1", "run-B"], "acknowledged": false, "recovered": false, "closed": false, "evidence": ["event-2"]}}, "active": ["warning-1", "warning-2"], "sound_tokens": ["warning-1", "warning-2"], "light": "yellow", "meaning": "monitoring_only_not_release"}, "alarms_after_ack": {"episodes": {"warning-1": {"key": ["sensor", "M1", "vibration", "rule-v1", "run-B"], "acknowledged": true, "recovered": false, "closed": false, "evidence": ["event-1"]}, "warning-2": {"key": ["sensor", "M1", "coolant", "rule-v1", "run-B"], "acknowledged": false, "recovered": false, "closed": false, "evidence": ["event-2"]}}, "active": ["warning-1", "warning-2"], "sound_tokens": ["warning-2"], "light": "yellow", "meaning": "monitoring_only_not_release"}, "offline_monitoring": {"episodes": {"warning-1": {"key": ["sensor", "M1", "vibration", "rule-v1", "run-B"], "acknowledged": false, "recovered": false, "closed": false, "evidence": ["event-1"]}}, "active": ["warning-1"], "sound_tokens": [], "light": "unavailable", "meaning": "monitoring_only_not_release"}, "ewma": [{"event_id": "window-0", "status": "normal", "ewma": 1.03}, {"event_id": "window-1", "status": "normal", "ewma": 1.111}, {"event_id": "window-2", "status": "normal", "ewma": 1.2277}, {"event_id": "window-3", "status": "warning", "ewma": 1.3393899999999999}], "exposure_before": {"exact": ["B"], "possible": [], "coverage": "complete", "issue": null}, "exposure_after": {"exact": ["A", "B"], "possible": [], "coverage": "complete", "issue": null}, "stage_map": [{"cohort": "steel/P1/v1", "stage": "machining", "processed": 2, "assessable": 1, "detected": 1, "origin_established": 0, "coverage": 0.5, "discovery_rate": 1.0, "established_origin_rate": 0.0}]};
+let state=report.alarms_before_ack, unavailable=false;
+const heard=new Set();
+function draw(){
+document.getElementById('state').replaceChildren();
+const lamp=document.createElement('span');lamp.className='lamp'+(unavailable?' unavailable':'');
+document.getElementById('state').append(lamp,unavailable
+?'Мониторинг недоступен; проблемы остаются открытыми'
+:'Жёлтый: требуется проверка, это не подтверждённый брак');
+document.getElementById('alarm').textContent=JSON.stringify(state,null,2);
+}
+document.getElementById('ack').onclick=()=>{state=report.alarms_after_ack;if(unavailable)state={...state,light:'unavailable',sound_tokens:[]};draw();};
+document.getElementById('offline').onclick=()=>{unavailable=true;state={...state,light:'unavailable',sound_tokens:[]};draw();};
+document.getElementById('sound').onclick=async()=>{
+const fresh=state.sound_tokens.filter(x=>!heard.has(x));if(!fresh.length)return;
+try {const Audio=window.AudioContext||window.webkitAudioContext;
+if(!Audio)throw new Error('Звук не поддерживается');
+const audio=new Audio();await audio.resume();
+fresh.forEach((id,i)=>{if(!state.sound_tokens.includes(id))return;heard.add(id);
+const osc=audio.createOscillator(),gain=audio.createGain();
+osc.frequency.value=520+i*120;gain.gain.value=.04;
+osc.connect(gain);gain.connect(audio.destination);osc.start(audio.currentTime+i*.25);osc.stop(audio.currentTime+i*.25+.12);});
+setTimeout(()=>audio.close(),1000);
+} catch(e){document.getElementById('state').append(' Звук недоступен: '+e.message);}
+};draw();
+</script></html>
