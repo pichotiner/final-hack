@@ -1,0 +1,87 @@
+{
+  "synthetic": true,
+  "items": ["insert-001", "insert-002", "assembly-001", "assembly-002", "assembly-003", "module-001"],
+  "cases": {
+    "late-component": {
+      "description": "F2: RC occurred before installation; receipt after installation. impact-v1 uses the whole lifetime.",
+      "occurred_at": "2026-09-25T10:02:30Z",
+      "received_at": "2026-09-25T10:20:00Z",
+      "installation_at": "2026-09-25T10:07:00Z",
+      "complete": true,
+      "evidence_id": "RC",
+      "reliable_items": ["insert-001"],
+      "memberships": [["M1", "insert-001", "assembly-001", "current"], ["M2", "insert-002", "assembly-002", "current"]]
+    },
+    "removed-component": {
+      "description": "F4: the same component has a former and a current assembly.",
+      "complete": true,
+      "evidence_id": "RC",
+      "reliable_items": ["insert-001"],
+      "memberships": [["M1", "insert-001", "assembly-001", "historical"], ["M2", "insert-002", "assembly-002", "current"], ["M3", "insert-001", "assembly-003", "current"]]
+    },
+    "corrected-membership": {
+      "description": "F5 subset: old assertion retained for conservative historical impact; no decision model.",
+      "complete": true,
+      "evidence_id": "correction-M1",
+      "reliable_items": ["insert-001"],
+      "memberships": [["M1", "insert-001", "assembly-001", "superseded"], ["M2", "insert-002", "assembly-002", "current"], ["M3", "insert-001", "assembly-003", "current"]]
+    },
+    "uncertain-component": {
+      "description": "F6 variant: a bounded candidate list of two components; not two confirmed defects.",
+      "complete": true,
+      "evidence_id": "U1",
+      "candidate_items": ["insert-001", "insert-002"],
+      "memberships": [["M1", "insert-001", "assembly-001", "current"], ["M2", "insert-002", "assembly-002", "current"]]
+    },
+    "unknown-scope": {
+      "description": "F7 subset: possible reach beyond the supplied candidate, no durable release guard.",
+      "complete": true,
+      "evidence_id": "U2",
+      "candidate_items": ["insert-001"],
+      "unknown_scope": true,
+      "memberships": [["M1", "insert-001", "assembly-001", "current"], ["M2", "insert-002", "assembly-002", "current"]]
+    },
+    "missing-completeness": {
+      "description": "Reliable identity alone does not prove the history of memberships complete.",
+      "complete": false,
+      "evidence_id": "RC",
+      "reliable_items": ["insert-001"],
+      "memberships": [["M1", "insert-001", "assembly-001", "current"], ["M2", "insert-002", "assembly-002", "current"]]
+    },
+    "before-membership": {
+      "description": "F8 first snapshot: RC is known, membership import is incomplete.",
+      "complete": false,
+      "evidence_id": "RC",
+      "reliable_items": ["insert-001"],
+      "memberships": [["M2", "insert-002", "assembly-002", "current"]]
+    },
+    "nested-assembly": {
+      "description": "F9 membership subset: reach the enclosing module using two paths, explain one stable path.",
+      "complete": true,
+      "evidence_id": "RC",
+      "reliable_items": ["insert-001"],
+      "memberships": [["M1", "insert-001", "assembly-001", "current"], ["M2", "insert-002", "assembly-002", "current"], ["M3", "insert-001", "assembly-003", "historical"], ["M4", "assembly-001", "module-001", "current"], ["M5", "assembly-003", "module-001", "historical"]]
+    },
+    "current-cycle": {
+      "description": "F10 subset: a simultaneous membership cycle is an explicit conflict.",
+      "complete": true,
+      "evidence_id": "RC",
+      "reliable_items": ["insert-001"],
+      "memberships": [["M1", "insert-001", "assembly-001", "current"], ["M2", "insert-002", "assembly-002", "current"], ["MX", "assembly-001", "insert-001", "current"]]
+    },
+    "historical-cycle": {
+      "description": "Historical union can be cyclic without a simultaneous cycle; traversal must terminate.",
+      "complete": true,
+      "evidence_id": "RC",
+      "reliable_items": ["insert-001"],
+      "memberships": [["M1", "insert-001", "assembly-001", "current"], ["M2", "insert-002", "assembly-002", "current"], ["MX", "assembly-001", "insert-001", "historical"]]
+    },
+    "independent-component": {
+      "description": "F12 membership subset: same product types or analyzers do not create instance membership.",
+      "complete": true,
+      "evidence_id": "RC2",
+      "reliable_items": ["insert-002"],
+      "memberships": [["M1", "insert-001", "assembly-001", "current"], ["M2", "insert-002", "assembly-002", "current"]]
+    }
+  }
+}

@@ -1,0 +1,142 @@
+{
+  "recorded_on": "2026-09-25",
+  "runtime_base_commit": "a1e8d87",
+  "command_from_backend": ".\\.venv\\Scripts\\python.exe scripts/measure_replay.py --operations 50 250 1000 --repeats 7 --growth-operations 20 40 80",
+  "experiment": "traceability-cost-v1",
+  "synthetic": true,
+  "processor_version": "traceability-v1",
+  "input_order": "seeded shuffle",
+  "seed": 20260925,
+  "environment": {
+    "python": "3.11.9",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "processor": "AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD",
+    "logical_cpus": 12
+  },
+  "scope": "in-memory reducer and JSON encoding; excludes database, crypto and transport",
+  "repeats": 7,
+  "replay_cases": [
+    {
+      "shape": "independent_operations",
+      "operations": 50,
+      "events": 101,
+      "replay": {
+        "median_ms": 1.232,
+        "max_ms": 1.475,
+        "samples_ms": [1.232, 1.233, 1.245, 1.475, 1.198, 1.092, 1.105]
+      },
+      "snapshot_encoding": {
+        "median_ms": 7.988,
+        "max_ms": 12.363,
+        "samples_ms": [8.118, 12.363, 9.091, 7.988, 7.36, 7.318, 7.719]
+      },
+      "final_snapshot_json_bytes": 83421
+    },
+    {
+      "shape": "rework_chain",
+      "operations": 50,
+      "events": 101,
+      "replay": {
+        "median_ms": 1.273,
+        "max_ms": 1.363,
+        "samples_ms": [1.363, 1.294, 1.275, 1.273, 1.263, 1.25, 1.21]
+      },
+      "snapshot_encoding": {
+        "median_ms": 7.649,
+        "max_ms": 8.999,
+        "samples_ms": [7.885, 7.591, 8.155, 7.567, 7.488, 8.999, 7.649]
+      },
+      "final_snapshot_json_bytes": 83813
+    },
+    {
+      "shape": "independent_operations",
+      "operations": 250,
+      "events": 501,
+      "replay": {
+        "median_ms": 5.706,
+        "max_ms": 7.263,
+        "samples_ms": [5.706, 5.831, 5.625, 7.263, 5.676, 5.544, 5.889]
+      },
+      "snapshot_encoding": {
+        "median_ms": 36.319,
+        "max_ms": 37.95,
+        "samples_ms": [35.769, 35.388, 37.95, 36.319, 36.401, 37.224, 35.933]
+      },
+      "final_snapshot_json_bytes": 413821
+    },
+    {
+      "shape": "rework_chain",
+      "operations": 250,
+      "events": 501,
+      "replay": {
+        "median_ms": 8.929,
+        "max_ms": 9.901,
+        "samples_ms": [8.731, 8.687, 9.901, 9.336, 8.729, 9.022, 8.929]
+      },
+      "snapshot_encoding": {
+        "median_ms": 36.37,
+        "max_ms": 37.81,
+        "samples_ms": [37.307, 37.81, 36.005, 36.37, 35.746, 36.139, 36.604]
+      },
+      "final_snapshot_json_bytes": 415813
+    },
+    {
+      "shape": "independent_operations",
+      "operations": 1000,
+      "events": 2001,
+      "replay": {
+        "median_ms": 25.468,
+        "max_ms": 29.657,
+        "samples_ms": [25.243, 25.95, 27.927, 25.322, 24.498, 25.468, 29.657]
+      },
+      "snapshot_encoding": {
+        "median_ms": 150.649,
+        "max_ms": 155.763,
+        "samples_ms": [152.831, 145.767, 148.783, 147.219, 152.505, 150.649, 155.763]
+      },
+      "final_snapshot_json_bytes": 1652821
+    },
+    {
+      "shape": "rework_chain",
+      "operations": 1000,
+      "events": 2001,
+      "replay": {
+        "median_ms": 78.297,
+        "max_ms": 88.21,
+        "samples_ms": [78.297, 85.357, 76.667, 78.384, 88.21, 77.219, 76.185]
+      },
+      "snapshot_encoding": {
+        "median_ms": 154.451,
+        "max_ms": 175.985,
+        "samples_ms": [153.547, 153.862, 158.725, 175.985, 156.876, 154.451, 147.765]
+      },
+      "final_snapshot_json_bytes": 1660813
+    }
+  ],
+  "snapshot_growth": [
+    {
+      "operations": 20,
+      "events": 41,
+      "snapshots": 41,
+      "final_snapshot_json_bytes": 33861,
+      "all_version_snapshots_json_bytes": 716243,
+      "all_versions_to_final_ratio": 21.15
+    },
+    {
+      "operations": 40,
+      "events": 81,
+      "snapshots": 81,
+      "final_snapshot_json_bytes": 66901,
+      "all_version_snapshots_json_bytes": 2753263,
+      "all_versions_to_final_ratio": 41.15
+    },
+    {
+      "operations": 80,
+      "events": 161,
+      "snapshots": 161,
+      "final_snapshot_json_bytes": 132981,
+      "all_version_snapshots_json_bytes": 10792103,
+      "all_versions_to_final_ratio": 81.16
+    }
+  ]
+}
