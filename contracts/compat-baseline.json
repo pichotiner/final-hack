@@ -1,5 +1,21 @@
 {
   "paths": {
+    "/api/v2/session": {
+      "get": {
+        "operationId": "getSession",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v2/work-orders": {
       "get": {
         "operationId": "listWorkOrders",
@@ -340,6 +356,120 @@
         }
       }
     },
+    "/api/v2/items/{item_id}/control-recoveries": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ItemId"
+        }
+      ],
+      "post": {
+        "operationId": "recoverControl",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ControlRecoveryCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Decision"
+                }
+              }
+            }
+          },
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Decision"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/v2/scope-constraints": {
+      "get": {
+        "operationId": "listScopeConstraints",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScopeReview"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/scope-constraints/{id}/resolutions": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/CardId"
+        }
+      ],
+      "post": {
+        "operationId": "resolveScope",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScopeCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScopeResolution"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/api/v2/nonconformities/{id}": {
       "parameters": [
         {
@@ -527,6 +657,22 @@
             },
             "style": "form",
             "explode": true
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
           }
         ],
         "responses": {
@@ -663,6 +809,24 @@
       }
     },
     "schemas": {
+      "Session": {
+        "type": "object",
+        "required": [
+          "actor_id",
+          "roles"
+        ],
+        "properties": {
+          "actor_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "Empty": {
         "type": "object",
         "additionalProperties": false
@@ -959,6 +1123,9 @@
             "$ref": "#/components/schemas/NullableId"
           },
           "control_session_id": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "replaces_observation_id": {
             "$ref": "#/components/schemas/NullableId"
           }
         }
@@ -1659,6 +1826,159 @@
           }
         }
       },
+      "ControlRecoveryCommand": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "action",
+          "record_id",
+          "reason",
+          "expected_revision",
+          "expected_basis_id",
+          "idempotency_key"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "expected_revision": {
+            "$ref": "#/components/schemas/Revision"
+          },
+          "expected_basis_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "idempotency_key": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "bind_control",
+              "replace_control"
+            ]
+          },
+          "record_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "replacement_record_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "control_cycle_id": {
+            "$ref": "#/components/schemas/Id"
+          }
+        }
+      },
+      "ScopeBasis": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "basis_id",
+          "context_revision"
+        ],
+        "properties": {
+          "basis_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "context_revision": {
+            "$ref": "#/components/schemas/Revision"
+          }
+        }
+      },
+      "ScopeReview": {
+        "type": "object",
+        "required": [
+          "constraints",
+          "bases"
+        ],
+        "properties": {
+          "constraints": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "constraint_id",
+                "reason"
+              ],
+              "properties": {
+                "constraint_id": {
+                  "$ref": "#/components/schemas/Id"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "bases": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ScopeBasis"
+            }
+          }
+        }
+      },
+      "ScopeCommand": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reason",
+          "idempotency_key",
+          "bases"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "idempotency_key": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "bases": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ScopeBasis"
+            }
+          }
+        }
+      },
+      "ScopeResolution": {
+        "type": "object",
+        "required": [
+          "constraint_id",
+          "decision_id",
+          "actor_id",
+          "reason",
+          "bases",
+          "decided_at"
+        ],
+        "properties": {
+          "constraint_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "decision_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "actor_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "bases": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ScopeBasis"
+            }
+          },
+          "decided_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "ResolveCommand": {
         "type": "object",
         "additionalProperties": false,
@@ -1869,7 +2189,9 @@
               "reopen",
               "released",
               "rework",
-              "rejected"
+              "rejected",
+              "bind_control",
+              "replace_control"
             ]
           },
           "reason": {
@@ -2036,6 +2358,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/InspectionResult"
+            }
+          },
+          "resolution_decision_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Id"
             }
           }
         }
@@ -2296,6 +2624,13 @@
           },
           "defect_ref": {
             "$ref": "#/components/schemas/NullableId"
+          },
+          "occurred_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           }
         }
       },
@@ -2379,6 +2714,103 @@
             "additionalProperties": {
               "type": "integer",
               "minimum": 0
+            }
+          },
+          "circumstances": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Circumstances"
+            }
+          }
+        }
+      },
+      "Circumstances": {
+        "type": "object",
+        "required": [
+          "nonconformity_id",
+          "status",
+          "before_record_id",
+          "after_record_id",
+          "operation_run_ids",
+          "related_events",
+          "alternatives",
+          "limitations"
+        ],
+        "properties": {
+          "nonconformity_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "status": {
+            "type": "string",
+            "const": "hypothesis"
+          },
+          "before_record_id": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "after_record_id": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "operation_run_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          "related_events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TimelineEntry"
+            }
+          },
+          "alternatives": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "category",
+                "explanation",
+                "record_ids"
+              ],
+              "properties": {
+                "category": {
+                  "type": "string"
+                },
+                "explanation": {
+                  "type": "string"
+                },
+                "record_ids": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Id"
+                  }
+                }
+              }
+            }
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "comparison": {
+            "type": "object",
+            "properties": {
+              "component_id": {
+                "$ref": "#/components/schemas/NullableId"
+              },
+              "region_id": {
+                "$ref": "#/components/schemas/NullableId"
+              },
+              "method_version": {
+                "$ref": "#/components/schemas/NullableId"
+              }
+            }
+          },
+          "contradicting_record_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Id"
             }
           }
         }
@@ -2507,6 +2939,82 @@
             "items": {
               "$ref": "#/components/schemas/Decision"
             }
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Operation"
+            }
+          },
+          "timeline": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TimelineEntry"
+            }
+          },
+          "observations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BasisObservation"
+            }
+          },
+          "cycles": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "required": [
+                "control_sessions",
+                "checkpoint_operation_run_ids"
+              ],
+              "properties": {
+                "control_sessions": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/Id"
+                  }
+                },
+                "checkpoint_operation_run_ids": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/NullableId"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "Operation": {
+        "type": "object",
+        "required": [
+          "operation_run_id",
+          "status"
+        ],
+        "properties": {
+          "operation_run_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "previous_operation_run_id": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "operation_type_id": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "operator_id": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "station_id": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "status": {
+            "type": "string"
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           }
         }
       },
@@ -2569,6 +3077,25 @@
               "applied",
               "unresolved"
             ]
+          },
+          "operation_run_id": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "operator_id": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "equipment_id": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "station_id": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "details": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true
           }
         }
       },
@@ -2617,6 +3144,263 @@
               "type": "integer",
               "minimum": 0
             }
+          },
+          "period": {
+            "type": "object",
+            "required": [
+              "since",
+              "until"
+            ],
+            "properties": {
+              "since": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "until": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            }
+          },
+          "period_inspected_items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "definitions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "defects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DefectAggregate"
+            }
+          },
+          "durations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DurationAggregate"
+            }
+          },
+          "comparable_work": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkAggregate"
+            }
+          }
+        }
+      },
+      "DefectAggregate": {
+        "type": "object",
+        "required": [
+          "defect_type",
+          "line_id",
+          "station_id",
+          "confirmed_defects",
+          "nonconformity_ids",
+          "item_ids",
+          "record_ids",
+          "decision_ids"
+        ],
+        "properties": {
+          "defect_type": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "line_id": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "station_id": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "confirmed_defects": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cause_status": {
+            "type": "string"
+          },
+          "cause_category": {
+            "type": "string"
+          },
+          "nonconformity_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          "item_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          "record_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          "decision_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        }
+      },
+      "DurationAggregate": {
+        "type": "object",
+        "required": [
+          "item_id",
+          "station_id",
+          "operator_id",
+          "shift_id",
+          "kind",
+          "origin",
+          "total_seconds",
+          "measured_operations",
+          "unavailable_operations",
+          "record_ids"
+        ],
+        "properties": {
+          "item_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "station_id": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "operator_id": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "shift_id": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "origin": {
+            "type": "string"
+          },
+          "total_seconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "measured_operations": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unavailable_operations": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "completed_operations": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "incomplete_operations": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "invalid_operations": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unit": {
+            "type": "string",
+            "const": "s"
+          },
+          "operation_run_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          "record_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        }
+      },
+      "WorkAggregate": {
+        "type": "object",
+        "required": [
+          "item_type_id",
+          "route_version",
+          "operation_type_id",
+          "station_id",
+          "operator_id",
+          "shift_id",
+          "completed_operations",
+          "confirmed_errors",
+          "error_rate",
+          "record_ids",
+          "decision_ids"
+        ],
+        "properties": {
+          "item_type_id": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "route_version": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "operation_type_id": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "station_id": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "operator_id": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "shift_id": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "completed_operations": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "confirmed_errors": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "error_rate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "comparable": {
+            "type": "boolean"
+          },
+          "operation_run_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          "record_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          "decision_ids": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Id"
+            }
           }
         }
       },
@@ -2641,6 +3425,7 @@
             "type": "string",
             "enum": [
               "pending",
+              "sending",
               "acknowledged",
               "error"
             ]

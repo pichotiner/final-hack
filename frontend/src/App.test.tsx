@@ -27,6 +27,7 @@ beforeEach(() => {
   vi.spyOn(api, "items").mockResolvedValue({ items: [item], next_cursor: null });
   vi.spyOn(api, "item").mockResolvedValue(item);
   vi.spyOn(api, "basis").mockResolvedValue(basis);
+  vi.spyOn(api, "session").mockResolvedValue({ actor_id: "controller-1", roles: ["controller"] });
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.useRealTimers(); });
 
@@ -84,6 +85,24 @@ it("a delayed basis cannot reopen a review after the user closed it", async () =
   await act(async () => { complete(basis); });
   expect(screen.queryByText(/B = b5/)).toBeNull();
   expect(request).not.toHaveBeenCalled();
+});
+
+it("reauthenticates the same actor after a lost response and retries identical bytes with a new token", async () => {
+  await prepare();
+  vi.mocked(request).mockRejectedValueOnce(new ApiError("network_error", "lost response", true));
+  await act(async () => { fireEvent.click(screen.getByText("Отправить отдельную команду")); });
+  const original = vi.mocked(request).mock.calls[0];
+  vi.mocked(api.session).mockResolvedValueOnce({ actor_id: "another-controller", roles: ["controller"] });
+  await act(async () => { fireEvent.change(screen.getByLabelText("Новый токен той же личности"), { target: { value: "wrong" } }); });
+  await act(async () => { fireEvent.click(screen.getByText("Восстановить доступ, сохранив команду")); });
+  expect(screen.getByRole("status").textContent).toContain("Нужна та же личность");
+  await act(async () => { fireEvent.change(screen.getByLabelText("Новый токен той же личности"), { target: { value: "renewed" } }); });
+  await act(async () => { fireEvent.click(screen.getByText("Восстановить доступ, сохранив команду")); });
+  const command = JSON.parse(original[2]!);
+  vi.mocked(request).mockResolvedValueOnce({ decision_id: "one-decision", target_id: "a", context_revision: 6, basis_id: command.expected_basis_id });
+  await act(async () => { fireEvent.click(screen.getByText("Исход неизвестен: повторить точное тело и ключ")); });
+  expect(vi.mocked(request).mock.calls[1]).toEqual([original[0], "renewed", original[2]]);
+  expect(screen.getByRole("status").textContent).toContain("one-decision");
 });
 
 it("shows server line state and does not treat a denied delivery read as an ACK", async () => {

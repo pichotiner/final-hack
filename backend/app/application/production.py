@@ -69,6 +69,7 @@ class ProductionService:
             "reopen_nonconformity": {"controller"},
             "dispose": {"controller"},
             "start_cycle": {"master"},
+            "recover_control": {"controller"},
         }
         if method not in roles:
             raise InvalidEvent("Unsupported production command.")

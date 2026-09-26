@@ -13,3 +13,9 @@ th, td { text-align: left; border-bottom: 1px solid #ddd; padding: 8px; }
 .message { border-left: 4px solid #427a9c; padding: 14px; overflow-wrap: anywhere; }
 article { border-bottom: 1px solid #ddd; padding: 10px; }
 footer { font-size: .9em; }
+select[multiple] { min-height: 110px; }
+td { overflow-wrap: anywhere; }
+dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+dl div { padding: 12px; background: #edf3f6; }
+dd { font-size: 1.4em; margin: 8px 0 0; }
+fieldset { border: 1px solid #d8e2e8; margin-top: 16px; }

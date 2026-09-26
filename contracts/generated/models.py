@@ -75,6 +75,7 @@ class InspectionPayload(BaseModel):
     evidence_refs: list[str] | None = None
     control_cycle_id: NullableId | None = None
     control_session_id: NullableId | None = None
+    replaces_observation_id: NullableId | None = None
 
 
 class ReportedDuration(BaseModel):
@@ -268,6 +269,56 @@ class DispositionCommand(BaseModel):
     disposition: Literal["released", "rework", "rejected"]
 
 
+class ControlRecoveryCommand(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    reason: str = Field(..., min_length=1, pattern="\\S")
+    expected_revision: Revision
+    expected_basis_id: Id
+    idempotency_key: Id
+    action: Literal["bind_control", "replace_control"]
+    record_id: Id
+    replacement_record_id: Id | None = None
+    control_cycle_id: Id | None = None
+
+
+class ScopeBasis(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    basis_id: Id
+    context_revision: Revision
+
+
+class Constraint(BaseModel):
+    constraint_id: Id
+    reason: str
+
+
+class ScopeReview(BaseModel):
+    constraints: list[Constraint]
+    bases: dict[str, ScopeBasis]
+
+
+class ScopeCommand(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    reason: str = Field(..., min_length=1, pattern="\\S")
+    idempotency_key: Id
+    bases: dict[str, ScopeBasis]
+
+
+class ScopeResolution(BaseModel):
+    constraint_id: Id
+    decision_id: Id
+    actor_id: Id
+    reason: str
+    bases: dict[str, ScopeBasis]
+    decided_at: AwareDatetime
+
+
 class ResolveCommand(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -338,6 +389,8 @@ class Decision(BaseModel):
         "released",
         "rework",
         "rejected",
+        "bind_control",
+        "replace_control",
     ]
     reason: str
     actor_id: Id
@@ -376,6 +429,7 @@ class CheckpointAssessment(BaseModel):
     operation_run_id: NullableId
     control_session_id: NullableId
     effective_results: list[InspectionResult]
+    resolution_decision_ids: list[Id] | None = None
 
 
 class Contradiction(BaseModel):
@@ -417,6 +471,7 @@ class BasisObservation(BaseModel):
     quality: ObservationQuality
     defect_type: NullableId
     defect_ref: NullableId
+    occurred_at: AwareDatetime | None = None
 
 
 class Nonconformity1(BaseModel):
@@ -430,11 +485,16 @@ class Nonconformity1(BaseModel):
     resolution_ids: list[Id]
 
 
-class AnalysisSnapshot(BaseModel):
-    observations: list[BasisObservation]
-    nonconformities: list[Nonconformity1]
-    scope_constraints: dict[str, str]
-    kpi: dict[str, int]
+class Alternative(BaseModel):
+    category: str
+    explanation: str
+    record_ids: list[Id]
+
+
+class Comparison(BaseModel):
+    component_id: NullableId | None = None
+    region_id: NullableId | None = None
+    method_version: NullableId | None = None
 
 
 class Nonconformity(BaseModel):
@@ -450,23 +510,19 @@ class Nonconformity(BaseModel):
     decisions: list[Decision]
 
 
-class Item(BaseModel):
-    item_id: Id
-    context_revision: Revision
-    control_cycle_id: Id
-    basis_id: Id
-    disposition: Disposition
-    release_allowed_now: bool
-    review_required: bool
-    blockers: list[str]
-    completeness: list[CheckpointAssessment]
-    nonconformities: list[Nonconformity]
-    decisions: list[Decision]
+class Cycles(BaseModel):
+    control_sessions: dict[str, Id]
+    checkpoint_operation_run_ids: dict[str, NullableId]
 
 
-class ItemPage(BaseModel):
-    items: list[Item]
-    next_cursor: str | None = None
+class Operation(BaseModel):
+    operation_run_id: Id
+    previous_operation_run_id: NullableId | None = None
+    operation_type_id: NullableId | None = None
+    operator_id: NullableId | None = None
+    station_id: NullableId | None = None
+    status: str
+    finished_at: AwareDatetime | None = None
 
 
 class TimelineEntry(BaseModel):
@@ -477,6 +533,11 @@ class TimelineEntry(BaseModel):
     occurred_at: AwareDatetime
     received_at: AwareDatetime
     projection_status: Literal["applied", "unresolved"]
+    operation_run_id: NullableId | None = None
+    operator_id: NullableId | None = None
+    equipment_id: NullableId | None = None
+    station_id: NullableId | None = None
+    details: dict[str, Any] | None = None
 
 
 class TimelinePage(BaseModel):
@@ -484,16 +545,62 @@ class TimelinePage(BaseModel):
     next_cursor: str | None = None
 
 
-class Analytics(BaseModel):
+class Period(BaseModel):
+    since: AwareDatetime | None = None
+    until: AwareDatetime | None = None
+
+
+class DefectAggregate(BaseModel):
+    defect_type: NullableId
+    line_id: NullableId
+    station_id: NullableId
+    confirmed_defects: int = Field(..., ge=0)
+    cause_status: str | None = None
+    cause_category: str | None = None
+    nonconformity_ids: list[Id]
     item_ids: list[Id]
-    computed_at: AwareDatetime
-    counts: dict[str, int]
+    record_ids: list[Id]
+    decision_ids: list[Id]
+
+
+class DurationAggregate(BaseModel):
+    item_id: Id
+    station_id: NullableId
+    operator_id: NullableId
+    shift_id: NullableId
+    kind: str
+    origin: str
+    total_seconds: float = Field(..., ge=0.0)
+    measured_operations: int = Field(..., ge=0)
+    unavailable_operations: int = Field(..., ge=0)
+    completed_operations: int | None = Field(None, ge=0)
+    incomplete_operations: int | None = Field(None, ge=0)
+    invalid_operations: int | None = Field(None, ge=0)
+    unit: Literal["s"] = "s"
+    operation_run_ids: list[Id] | None = None
+    record_ids: list[Id]
+
+
+class WorkAggregate(BaseModel):
+    item_type_id: NullableId
+    route_version: NullableId
+    operation_type_id: NullableId
+    station_id: NullableId
+    operator_id: NullableId
+    shift_id: NullableId
+    completed_operations: int = Field(..., ge=0)
+    confirmed_errors: int = Field(..., ge=0)
+    error_rate: float | None = Field(..., ge=0.0, le=1.0)
+    comparable: bool | None = None
+    operation_run_ids: list[Id] | None = None
+    record_ids: list[Id]
+    decision_ids: list[Id]
 
 
 class Delivery(BaseModel):
     message_id: Id
     result_version: int = Field(..., ge=1)
-    status: Literal["pending", "acknowledged", "error"]
+    status: Literal["pending", "sending", "acknowledged", "error"]
     attempts: int = Field(..., ge=0)
     last_error: str | None = None
 
@@ -513,6 +620,11 @@ class Error(BaseModel):
 class ErrorResponse(BaseModel):
     request_id: str
     error: Error
+
+
+class Session(BaseModel):
+    actor_id: Id
+    roles: list[str]
 
 
 class WorkOrder(BaseModel):
@@ -542,6 +654,62 @@ class LineStatus(BaseModel):
     source_last_received_at: AwareDatetime | None = None
     unresolved_items: int = Field(..., ge=0)
     active_operation_run_ids: list[Id]
+
+
+class Circumstances(BaseModel):
+    nonconformity_id: Id
+    status: Literal["hypothesis"]
+    before_record_id: NullableId
+    after_record_id: NullableId
+    operation_run_ids: list[Id]
+    related_events: list[TimelineEntry]
+    alternatives: list[Alternative]
+    limitations: list[str]
+    comparison: Comparison | None = None
+    contradicting_record_ids: list[Id] | None = None
+
+
+class Item(BaseModel):
+    item_id: Id
+    context_revision: Revision
+    control_cycle_id: Id
+    basis_id: Id
+    disposition: Disposition
+    release_allowed_now: bool
+    review_required: bool
+    blockers: list[str]
+    completeness: list[CheckpointAssessment]
+    nonconformities: list[Nonconformity]
+    decisions: list[Decision]
+    operations: list[Operation] | None = None
+    timeline: list[TimelineEntry] | None = None
+    observations: list[BasisObservation] | None = None
+    cycles: dict[str, Cycles] | None = None
+
+
+class ItemPage(BaseModel):
+    items: list[Item]
+    next_cursor: str | None = None
+
+
+class Analytics(BaseModel):
+    item_ids: list[Id]
+    computed_at: AwareDatetime
+    counts: dict[str, int]
+    period: Period | None = None
+    period_inspected_items: int | None = Field(None, ge=0)
+    definitions: list[str] | None = None
+    defects: list[DefectAggregate] | None = None
+    durations: list[DurationAggregate] | None = None
+    comparable_work: list[WorkAggregate] | None = None
+
+
+class AnalysisSnapshot(BaseModel):
+    observations: list[BasisObservation]
+    nonconformities: list[Nonconformity1]
+    scope_constraints: dict[str, str]
+    kpi: dict[str, int]
+    circumstances: list[Circumstances] | None = None
 
 
 class Basis(BaseModel):

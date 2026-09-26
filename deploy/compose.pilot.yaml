@@ -1,0 +1,96 @@
+name: efqa-pilot
+
+x-core: &core
+  image: efqa-pilot-core:local
+  user: "${QC_UID:-10001}:${QC_GID:-10001}"
+  environment: &runtime
+    DATABASE_URL: postgresql+psycopg://qc_app:${QC_APP_PASSWORD:?Run pilot.py up}@postgres:5432/final_hack
+    QC_KEYRING_FILE: /run/credentials/keyring.json
+    QC_IDENTITIES_FILE: /run/credentials/identities.json
+    QC_CONTRACT_ROOT: /srv/contracts
+  volumes:
+    - ${QC_PILOT_DIR:?Run pilot.py up}/credentials:/run/credentials:ro
+    - ../contracts:/srv/contracts:ro
+    - ../backend/examples:/srv/backend/examples:ro
+  networks: [private]
+
+services:
+  postgres:
+    image: postgres:17.9-bookworm@sha256:47f917f7409eacd22fc5dfb1dee634e1b55cf0c01d1a7eb701be2227a03e0641
+    environment:
+      POSTGRES_USER: qc_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run pilot.py up}
+      POSTGRES_DB: final_hack
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    networks: [private]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U qc_admin -d final_hack"]
+      interval: 2s
+      timeout: 3s
+      retries: 40
+  migrate:
+    <<: *core
+    command: [python, -m, app.manage, migrate]
+    environment:
+      DATABASE_URL: postgresql+psycopg://qc_admin:${POSTGRES_PASSWORD}@postgres:5432/final_hack
+      QC_APP_PASSWORD: ${QC_APP_PASSWORD}
+    depends_on:
+      postgres: {condition: service_healthy}
+  api:
+    <<: *core
+    build: ../backend
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2)"]
+      interval: 2s
+      timeout: 3s
+      retries: 40
+  erp:
+    build: {context: .., dockerfile: deploy/Dockerfile.emulator}
+    user: "${QC_UID:-10001}:${QC_GID:-10001}"
+    volumes:
+      - ${QC_PILOT_DIR}/erp:/state
+      - ${QC_PILOT_DIR}/credentials/erp.token:/run/erp.token:ro
+    networks: [private]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health', timeout=2)"]
+      interval: 2s
+      timeout: 3s
+      retries: 40
+  importer:
+    <<: *core
+    command: [python, -m, app.import_erp, --url, "http://erp:8090/external/v2/work-orders", --contract, /srv/contracts/external-openapi.yaml, --profile, examples/erp-import-profile.json, --erp-token-file, /run/credentials/erp.token, --integration-token-file, /run/credentials/import.token]
+    depends_on:
+      api: {condition: service_healthy}
+      erp: {condition: service_healthy}
+  worker:
+    <<: *core
+    command: [python, -m, app.worker]
+    environment:
+      <<: *runtime
+      QC_ERP_RESULTS_URL: http://erp:8090/external/v2/quality-results
+      QC_ERP_TOKEN_FILE: /run/credentials/erp.token
+    depends_on:
+      importer: {condition: service_completed_successfully}
+  web:
+    build: {context: .., dockerfile: deploy/Dockerfile.frontend}
+    ports: ["${QC_BIND_ADDRESS:-127.0.0.1}:${QC_HTTPS_PORT:-8443}:8443"]
+    volumes:
+      - ${QC_PILOT_DIR}/credentials/tls/server.crt:/run/tls/server.crt:ro
+      - ${QC_PILOT_DIR}/credentials/tls/server.key:/run/tls/server.key:ro
+      - ${QC_PILOT_DIR}/credentials/tls/ca.crt:/run/tls/ca.crt:ro
+    networks: [private, ingress]
+    depends_on:
+      api: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, --show-error, --cacert, /run/tls/ca.crt, "https://127.0.0.1:8443/health/ready"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+
+networks:
+  private: {internal: true}
+  ingress: {}
+volumes:
+  postgres_data:

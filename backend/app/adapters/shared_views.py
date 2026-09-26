@@ -4,7 +4,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 from sqlalchemy import select
 
-from app.adapters.postgres import _record, quality_erp_imports, raw_events
+from app.adapters.postgres import _record, quality_constraints, quality_erp_imports, raw_events
 from app.adapters.quality import _encode
 from app.domain.errors import IntegrityViolation
 
@@ -128,11 +128,12 @@ class SharedViews:
 
     def basis(self, basis_id):
         item_id = self.quality.find_basis_item(basis_id)
-        return self.quality._run(
+        return self.quality.read(
             item_id,
             lambda workflow, connection: self._basis_from_workflow(
                 workflow, connection, item_id, basis_id
             ),
+            basis_id=basis_id,
         )
 
     def _basis_from_workflow(self, workflow, connection, item_id, basis_id):
@@ -159,8 +160,9 @@ class SharedViews:
                     None,
                 )
                 if basis is None:
-                    created = workflow.create_basis(item_id, target)
-                    basis = item.bases[created["basis_id"]]
+                    raise IntegrityViolation(
+                        "Current basis unavailable; run the P7 storage upgrade."
+                    )
                 return self._basis_from_workflow(workflow, connection, item_id, basis.basis_id)
 
             basis = basis_for()
@@ -214,9 +216,33 @@ class SharedViews:
                 "completeness": basis["completeness"],
                 "nonconformities": cards,
                 "decisions": decisions,
+                "operations": item.production_history.get("operations", []),
+                "timeline": item.production_history.get("timeline", []),
+                "observations": state["effective_observations"],
+                "cycles": item.cycles,
             }
 
-        return self.quality._run(item_id, read)
+        return self.quality.read(item_id, read)
+
+    def scope_review(self):
+        with self.quality.engine.connect() as connection:
+            constraints = [
+                {"constraint_id": row["constraint_id"], "reason": row["state"]["reason"]}
+                for row in connection.execute(
+                    select(quality_constraints).where(quality_constraints.c.is_open.is_(True))
+                ).mappings()
+            ]
+        items = [self.item(state["item_id"]) for state in self.quality.list_states()]
+        return {
+            "constraints": constraints,
+            "bases": {
+                item["item_id"]: {
+                    "basis_id": item["basis_id"],
+                    "context_revision": item["context_revision"],
+                }
+                for item in items
+            },
+        }
 
     def command_result(self, result):
         value = _encode(dict(result))
