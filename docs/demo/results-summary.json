@@ -1,0 +1,345 @@
+{
+  "synthetic": true,
+  "environment": "environment.json",
+  "independent_expectations": "docs/acceptance/role2-m0-expected.json",
+  "cases": [
+    {
+      "case_id": "R2-NORMAL / UI + ACK",
+      "status": "PASS",
+      "actual": {
+        "decision_id": "c914e608-596b-4938-87d2-45a90008bc00",
+        "erp_message_id": "5c9d3b4c-dd24-4a33-894f-2d8147ac43af",
+        "ack_status": "accepted"
+      }
+    },
+    {
+      "case_id": "A04 / R2-REWORK / UI + ACK",
+      "status": "PASS",
+      "actual": {
+        "item": "assembly-001",
+        "metrics": {
+          "inspected_items": 1,
+          "confirmed_nonconforming_items": 1,
+          "confirmed_defects": 1,
+          "open_confirmed_defects": 0,
+          "resolved_confirmed_defects": 1,
+          "open_nonconforming_items": 0,
+          "review_required_items": 0,
+          "unresolved_cause_defects": 1,
+          "established_cause_defects": 0,
+          "confirmed_operator_errors": 0,
+          "rework_operations": 1,
+          "repeat_controls": 3,
+          "blocked_items": 0,
+          "released_after_reinspection": 1
+        },
+        "decision_ids": [
+          "7722f9a6-dfb2-4c2b-b4ee-2f535fcad753",
+          "abb97d66-6740-49d9-8270-2933e6ab9166",
+          "1a5f6df6-e916-4a0a-80b9-74ebb933b8ee",
+          "cc357a5b-2d35-4a1f-b24a-ae6d0fd3cb93"
+        ],
+        "result_version": 19,
+        "ack_status": "duplicate",
+        "historical_status": "superseded"
+      }
+    },
+    {
+      "case_id": "R2-UNKNOWN / poor + negative",
+      "status": "PASS",
+      "actual": {
+        "raw_record_id": "47dfedf1-59e5-4f8d-bc23-56ad2498066a",
+        "raw_result": "no_defect_signs",
+        "effective_result": "not_assessable",
+        "blockers": [
+          "not_assessable:final-surface"
+        ],
+        "denial": {
+          "error": {
+            "code": "release_blocked",
+            "message": "Release is blocked by the current quality context.",
+            "details": [],
+            "blockers": [
+              "not_assessable:final-surface"
+            ]
+          },
+          "request_id": "f4dafb7c-6dc1-4543-a42f-e641aa8b93d6"
+        }
+      }
+    },
+    {
+      "case_id": "A01/A02 / late after released, stale and historical B",
+      "status": "PASS",
+      "actual": {
+        "old_basis_id": "14752f44-3f58-4513-af7e-6e36cf12a4f5",
+        "new_basis_id": "d2534125-94d8-49e8-a437-cb5dfc7880c3",
+        "old_decision_id": "c914e608-596b-4938-87d2-45a90008bc00",
+        "late_record_id": "dcf31993-27e1-40af-914d-1ee14849c368",
+        "blockers": [
+          "disputed_checkpoint:incoming-surface",
+          "nonconformity:782565e0-ba99-4b33-9048-76ac81d82560:pending_review",
+          "disposition_review_required"
+        ],
+        "denied": "stale_revision"
+      }
+    },
+    {
+      "case_id": "R2-DUPLICATE / A08 transport",
+      "status": "PASS",
+      "actual": {
+        "first": {
+          "record_id": "c289d361-a5f8-4a36-8013-1ae7eec9fedd",
+          "source_id": "vision-emulator-1",
+          "event_id": "4e48c65a-d12c-4d42-9ea7-e8bdc4101269",
+          "status": "accepted",
+          "received_at": "2026-09-26T16:28:34.935245+00:00",
+          "projection_status": "applied",
+          "issues": []
+        },
+        "duplicate": {
+          "record_id": "c289d361-a5f8-4a36-8013-1ae7eec9fedd",
+          "source_id": "vision-emulator-1",
+          "event_id": "4e48c65a-d12c-4d42-9ea7-e8bdc4101269",
+          "status": "duplicate",
+          "received_at": "2026-09-26T16:28:34.935245+00:00",
+          "projection_status": "applied",
+          "issues": []
+        },
+        "revision": 9
+      }
+    },
+    {
+      "case_id": "R2-SECOND-OBSERVATION / same logical defect",
+      "status": "PASS",
+      "actual": {
+        "first": "2b50f768-e76e-453f-9460-3aba050f55aa",
+        "second": "50d1b322-5f4c-4f00-9b9e-8d1b5a4752e5",
+        "observations": [
+          "2b50f768-e76e-453f-9460-3aba050f55aa:0",
+          "50d1b322-5f4c-4f00-9b9e-8d1b5a4752e5:0"
+        ],
+        "confirmed": 1
+      }
+    },
+    {
+      "case_id": "R2-TWO-SIGNS / distinct indices and cards",
+      "status": "PASS",
+      "actual": {
+        "record_id": "c61b8377-6b52-430e-a8d2-91e33e55e3d9",
+        "signs": [
+          {
+            "observation_id": "c61b8377-6b52-430e-a8d2-91e33e55e3d9:0",
+            "defect_index": 0,
+            "region_id": "face-A"
+          },
+          {
+            "observation_id": "c61b8377-6b52-430e-a8d2-91e33e55e3d9:1",
+            "defect_index": 1,
+            "region_id": "face-B"
+          }
+        ],
+        "confirmed": 2
+      }
+    },
+    {
+      "case_id": "R2-WARNING / station, operator, cause unknown",
+      "status": "PASS",
+      "actual": {
+        "basis_id": "dcd16d5b-9c6c-451e-8afb-ca76cd31fc8a",
+        "timeline_types": [
+          "operation_started",
+          "operation_started",
+          "inspection_observed",
+          "operation_finished",
+          "inspection_observed",
+          "operator_action",
+          "inspection_observed",
+          "machine_state",
+          "operation_finished",
+          "item_received"
+        ],
+        "cause": {
+          "status": "unresolved",
+          "category": "unknown",
+          "record_ids": [],
+          "limitations": [
+            "cause_not_established"
+          ]
+        },
+        "operator_errors": 0
+      }
+    },
+    {
+      "case_id": "incoming defect / no operator attribution",
+      "status": "PASS",
+      "actual": {
+        "card": {
+          "id": "022709be-5662-4bbb-9408-db803974c40a",
+          "item_id": "incoming-assembly-001",
+          "context_revision": 9,
+          "basis_id": "19a7fc8d-8745-4c64-928b-def15ed65722",
+          "status": "pending_review",
+          "resolution_status": "not_applicable",
+          "review_required": false,
+          "record_ids": [
+            "8bca127e-4964-484a-8828-731c578223a9"
+          ],
+          "cause": {
+            "status": "unresolved",
+            "category": "unknown",
+            "record_ids": [],
+            "limitations": [
+              "cause_not_established"
+            ]
+          },
+          "decisions": []
+        },
+        "operator_errors": 0
+      }
+    },
+    {
+      "case_id": "missing control / release blocked",
+      "status": "PASS",
+      "actual": {
+        "blockers": [
+          "missing_checkpoint:final-surface"
+        ],
+        "denied": "release_blocked"
+      }
+    },
+    {
+      "case_id": "A07 / contradictory control and distinct blockers",
+      "status": "PASS",
+      "actual": {
+        "before_revision": 9,
+        "after_revision": 10,
+        "blockers": [
+          "disputed_checkpoint:final-surface",
+          "nonconformity:c3356d72-c8f0-4d96-9c38-eaba64e7d475:pending_review"
+        ],
+        "denial": "release_blocked"
+      }
+    },
+    {
+      "case_id": "A07 / rejecting poor sign cannot turn control good",
+      "status": "PASS",
+      "actual": {
+        "rejection": "944e46bf-fc18-444d-8162-d34a587a88c6",
+        "blockers": [
+          "not_assessable:final-surface"
+        ],
+        "denial": "release_blocked"
+      }
+    },
+    {
+      "case_id": "A05 / no repeat controls after completed repair",
+      "status": "PASS",
+      "actual": {
+        "cycle": "da33872d-429b-59b9-93a6-c4a391d1ad00",
+        "error": "invalid_transition",
+        "blockers": [
+          "missing_checkpoint:incoming-surface",
+          "missing_checkpoint:after-machining",
+          "missing_checkpoint:final-surface",
+          "nonconformity:3f4314be-ba77-475c-8548-bf40b9334f2c:open",
+          "review_required:3f4314be-ba77-475c-8548-bf40b9334f2c",
+          "context_review_required",
+          "disposition_review_required"
+        ],
+        "extra_decisions": 0,
+        "extra_messages": 0
+      }
+    },
+    {
+      "case_id": "R1-02 / A06 old session, foreign run, wrong cycle",
+      "status": "PASS",
+      "actual": {
+        "cycle": "cee023c7-27cb-5118-8840-361477b975ca",
+        "blockers": [
+          "observation_cycle_unresolved",
+          "missing_checkpoint:incoming-surface",
+          "missing_checkpoint:after-machining",
+          "missing_checkpoint:final-surface",
+          "nonconformity:987fc4fd-d954-4cd3-b0ee-6836a36b4a2f:open",
+          "review_required:987fc4fd-d954-4cd3-b0ee-6836a36b4a2f",
+          "context_review_required",
+          "disposition_review_required"
+        ],
+        "full_A06": "BLOCKED: no carry endpoint"
+      }
+    },
+    {
+      "case_id": "A03 / browser lost response, 403, exact retry",
+      "status": "PASS",
+      "actual": {
+        "attempts": 3,
+        "same_body": true,
+        "decision_id": "6a22fa46-6bcb-4273-b28a-aa2c6262f779",
+        "revision": 10
+      }
+    },
+    {
+      "case_id": "A12 / source cannot decide, wrong basis",
+      "status": "PASS",
+      "actual": {
+        "role_denial": "permission_denied",
+        "basis_denial": "basis_mismatch",
+        "decisions_after": 0
+      }
+    },
+    {
+      "case_id": "A10 / ERP identity conflicts",
+      "status": "PASS",
+      "actual": {
+        "same_message_changed_body": "message_id_conflict",
+        "same_version_new_message": "result_version_conflict"
+      }
+    },
+    {
+      "case_id": "A09 / V2-V1-V2 order at persistent ERP",
+      "status": "PASS",
+      "actual": {
+        "first": {
+          "producer_id": "efqa-demo",
+          "external_system": "erp-demo",
+          "external_order_id": "order-001",
+          "external_item_id": "disputed-assembly-001",
+          "message_id": "5e7b338c-468f-431a-a3bf-48d2a99e3b26",
+          "result_version": 2,
+          "content_digest": "8821ae292795b9f24d9c05f13a890cdf0d00cfafbfaa7f0b1f641cdfd14f36e0",
+          "status": "accepted",
+          "application_status": "applied",
+          "received_at": "2026-09-26T16:28:58.892964+00:00",
+          "current_version_at_accept": 2
+        },
+        "older": {
+          "producer_id": "efqa-demo",
+          "external_system": "erp-demo",
+          "external_order_id": "order-001",
+          "external_item_id": "disputed-assembly-001",
+          "message_id": "eb81c985-b283-445f-87a2-18190a1586e8",
+          "result_version": 1,
+          "content_digest": "3aabf0166d7d982e307a3b8e5dfbc5c96080c5f90ce6437720a306d06ee8926d",
+          "status": "accepted",
+          "application_status": "superseded",
+          "received_at": "2026-09-26T16:28:58.923175+00:00",
+          "current_version_at_accept": 2
+        },
+        "duplicate": {
+          "producer_id": "efqa-demo",
+          "external_system": "erp-demo",
+          "external_order_id": "order-001",
+          "external_item_id": "disputed-assembly-001",
+          "message_id": "5e7b338c-468f-431a-a3bf-48d2a99e3b26",
+          "result_version": 2,
+          "content_digest": "8821ae292795b9f24d9c05f13a890cdf0d00cfafbfaa7f0b1f641cdfd14f36e0",
+          "status": "duplicate",
+          "application_status": "applied",
+          "received_at": "2026-09-26T16:28:58.892964+00:00",
+          "current_version_at_accept": 2
+        },
+        "current_message_id": "5e7b338c-468f-431a-a3bf-48d2a99e3b26"
+      }
+    }
+  ]
+}

@@ -1,0 +1,1416 @@
+{
+  "first": {
+    "basis_id": "dc3b4240-aaf6-43e7-ad57-b6dc1e9db239",
+    "item_id": "assembly-001",
+    "target_id": "ed677b2e-7ada-4da5-9eb0-4286b4146703",
+    "context_revision": 9,
+    "cycle_id": "cycle-1",
+    "observation_ids": [
+      "6d1d09dd-a233-4b74-a359-a630500f3b71:0",
+      "77013c14-7d07-43c0-ac34-78b9ebd4478a:0",
+      "795341ac-4ebc-4f7e-94af-81c915914a5d:0"
+    ],
+    "nonconformity_ids": [
+      "ed677b2e-7ada-4da5-9eb0-4286b4146703"
+    ],
+    "blockers": [
+      "nonconformity:ed677b2e-7ada-4da5-9eb0-4286b4146703:pending_review"
+    ],
+    "created_at": "2026-09-26T16:27:47.078355+00:00",
+    "context_snapshot": {
+      "cycles": {
+        "cycle-1": {
+          "disposition_id": null,
+          "control_sessions": {
+            "final-surface": "assembly-001-initial-final",
+            "after-machining": "assembly-001-initial-machining",
+            "incoming-surface": "assembly-001-initial-incoming"
+          },
+          "operation_run_ids": [
+            "run-machining-001",
+            "run-assembly-001"
+          ],
+          "required_checkpoints": [
+            "incoming-surface",
+            "after-machining",
+            "final-surface"
+          ],
+          "checkpoint_operation_run_ids": {
+            "final-surface": "run-assembly-001",
+            "after-machining": "run-machining-001",
+            "incoming-surface": null
+          }
+        }
+      },
+      "production_context": {
+        "controls": [
+          {
+            "region_id": "face-A",
+            "source_id": "vision-emulator-1",
+            "component_id": "insert-001",
+            "checkpoint_id": "incoming-surface",
+            "analyzer_version": "emulator-1",
+            "inspection_phase": "incoming",
+            "operation_run_id": null,
+            "control_session_id": "assembly-001-initial-incoming"
+          },
+          {
+            "region_id": "face-A",
+            "source_id": "vision-emulator-1",
+            "component_id": "insert-001",
+            "checkpoint_id": "after-machining",
+            "analyzer_version": "emulator-1",
+            "inspection_phase": "after_operation",
+            "operation_run_id": "run-machining-001",
+            "control_session_id": "assembly-001-initial-machining"
+          },
+          {
+            "region_id": "face-A",
+            "source_id": "vision-emulator-1",
+            "component_id": "insert-001",
+            "checkpoint_id": "final-surface",
+            "analyzer_version": "emulator-1",
+            "inspection_phase": "final",
+            "operation_run_id": "run-assembly-001",
+            "control_session_id": "assembly-001-initial-final"
+          }
+        ],
+        "route_id": "route-bracket",
+        "producer_id": "efqa-demo",
+        "component_ids": [
+          "bracket-001",
+          "insert-001"
+        ],
+        "route_version": "1",
+        "rules_version": "quality-v2",
+        "work_order_id": "order-001",
+        "external_system": "erp-demo",
+        "mapping_version": "role2-bracket-demo@2",
+        "assembly_version": "1",
+        "external_item_id": "assembly-001",
+        "external_order_id": "order-001",
+        "erp_result_profile": "dp01-0.4",
+        "source_authorities": [
+          {
+            "source_id": "vision-emulator-1",
+            "event_types": [
+              "inspection_observed"
+            ],
+            "station_ids": []
+          },
+          {
+            "source_id": "line-emulator-1",
+            "event_types": [
+              "item_received",
+              "operation_started",
+              "operation_finished",
+              "operator_action",
+              "machine_state"
+            ],
+            "station_ids": []
+          }
+        ],
+        "work_order_version": "1",
+        "required_operations": [
+          "run-machining-001",
+          "run-assembly-001"
+        ],
+        "control_plan_version": "1"
+      },
+      "production_history": {
+        "issues": [
+          "work_order_not_resolved"
+        ],
+        "item_id": "assembly-001",
+        "timeline": [
+          {
+            "issues": [
+              "work_order_not_resolved"
+            ],
+            "details": null,
+            "line_id": "line-1",
+            "event_id": "42867cd7-6ec1-4830-8e83-57f41175145f",
+            "record_id": "7f7979a2-f97c-4388-a088-9c36602066e0",
+            "source_id": "line-emulator-1",
+            "event_type": "item_received",
+            "station_id": "station-assembly",
+            "occurred_at": "2026-09-26T10:01:00+00:00",
+            "operator_id": null,
+            "received_at": "2026-09-26T16:27:45.863221+00:00",
+            "equipment_id": null,
+            "time_quality": "synchronized",
+            "operation_run_id": null,
+            "projection_status": "unresolved"
+          },
+          {
+            "issues": [
+              "event_domain_processing_not_implemented"
+            ],
+            "details": {
+              "defects": [],
+              "confidence": null,
+              "checkpoint_id": "incoming-surface",
+              "analyzer_version": "emulator-1",
+              "inspection_phase": "incoming",
+              "inspection_result": "no_defect_signs",
+              "observation_quality": "good"
+            },
+            "line_id": "line-1",
+            "event_id": "8d05ce3f-f522-4295-8cbe-44c1b5777823",
+            "record_id": "77013c14-7d07-43c0-ac34-78b9ebd4478a",
+            "source_id": "vision-emulator-1",
+            "event_type": "inspection_observed",
+            "station_id": "station-assembly",
+            "occurred_at": "2026-09-26T10:02:00+00:00",
+            "operator_id": null,
+            "received_at": "2026-09-26T16:27:45.941345+00:00",
+            "equipment_id": null,
+            "time_quality": "synchronized",
+            "operation_run_id": null,
+            "projection_status": "unresolved"
+          },
+          {
+            "issues": [],
+            "details": null,
+            "line_id": "line-1",
+            "event_id": "4d846d96-a29b-4c66-bdba-9a15e1dd3e76",
+            "record_id": "4be1df1d-a767-496e-9240-c43bb26089db",
+            "source_id": "line-emulator-1",
+            "event_type": "operation_started",
+            "station_id": "station-machining",
+            "occurred_at": "2026-09-26T10:03:00+00:00",
+            "operator_id": "operator-01",
+            "received_at": "2026-09-26T16:27:46.043814+00:00",
+            "equipment_id": "machine-01",
+            "time_quality": "synchronized",
+            "operation_run_id": "run-machining-001",
+            "projection_status": "applied"
+          },
+          {
+            "issues": [],
+            "details": null,
+            "line_id": "line-1",
+            "event_id": "8a951077-0e85-4a5e-9646-ae1554ebe821",
+            "record_id": "02eb0582-5aff-44f4-80c7-1a86001c56b8",
+            "source_id": "line-emulator-1",
+            "event_type": "operation_finished",
+            "station_id": "station-machining",
+            "occurred_at": "2026-09-26T10:05:00+00:00",
+            "operator_id": "operator-01",
+            "received_at": "2026-09-26T16:27:46.158640+00:00",
+            "equipment_id": "machine-01",
+            "time_quality": "synchronized",
+            "operation_run_id": "run-machining-001",
+            "projection_status": "applied"
+          },
+          {
+            "issues": [
+              "event_domain_processing_not_implemented"
+            ],
+            "details": {
+              "defects": [],
+              "confidence": null,
+              "checkpoint_id": "after-machining",
+              "analyzer_version": "emulator-1",
+              "inspection_phase": "after_operation",
+              "inspection_result": "no_defect_signs",
+              "observation_quality": "good"
+            },
+            "line_id": "line-1",
+            "event_id": "2f05b2b0-2660-4830-a804-6eb050e31282",
+            "record_id": "6d1d09dd-a233-4b74-a359-a630500f3b71",
+            "source_id": "vision-emulator-1",
+            "event_type": "inspection_observed",
+            "station_id": "station-machining",
+            "occurred_at": "2026-09-26T10:06:00+00:00",
+            "operator_id": null,
+            "received_at": "2026-09-26T16:27:46.278588+00:00",
+            "equipment_id": null,
+            "time_quality": "synchronized",
+            "operation_run_id": "run-machining-001",
+            "projection_status": "unresolved"
+          },
+          {
+            "issues": [],
+            "details": null,
+            "line_id": "line-1",
+            "event_id": "8b4d371d-dc50-46c6-b22a-3abced9e67a3",
+            "record_id": "95268142-6d24-462c-a16f-a22866ae0043",
+            "source_id": "line-emulator-1",
+            "event_type": "operation_started",
+            "station_id": "station-assembly",
+            "occurred_at": "2026-09-26T10:07:00+00:00",
+            "operator_id": "operator-02",
+            "received_at": "2026-09-26T16:27:46.423492+00:00",
+            "equipment_id": "machine-02",
+            "time_quality": "synchronized",
+            "operation_run_id": "run-assembly-001",
+            "projection_status": "applied"
+          },
+          {
+            "issues": [],
+            "details": null,
+            "line_id": "line-1",
+            "event_id": "3603b934-6bfc-4b9c-8fd6-7a48f8a3f596",
+            "record_id": "ef20479d-fcc3-4500-a34f-6d8118585efd",
+            "source_id": "line-emulator-1",
+            "event_type": "operation_finished",
+            "station_id": "station-assembly",
+            "occurred_at": "2026-09-26T10:09:00+00:00",
+            "operator_id": "operator-02",
+            "received_at": "2026-09-26T16:27:46.577996+00:00",
+            "equipment_id": "machine-02",
+            "time_quality": "synchronized",
+            "operation_run_id": "run-assembly-001",
+            "projection_status": "applied"
+          },
+          {
+            "issues": [
+              "event_domain_processing_not_implemented"
+            ],
+            "details": {
+              "defects": [
+                {
+                  "type": "surface-mark",
+                  "region_id": "face-A",
+                  "defect_ref": "mark-001",
+                  "component_id": "insert-001"
+                }
+              ],
+              "confidence": null,
+              "checkpoint_id": "final-surface",
+              "analyzer_version": "emulator-1",
+              "inspection_phase": "final",
+              "inspection_result": "defect_signs",
+              "observation_quality": "good"
+            },
+            "line_id": "line-1",
+            "event_id": "63fb4bc4-6040-410f-891b-f475bb1b1af7",
+            "record_id": "795341ac-4ebc-4f7e-94af-81c915914a5d",
+            "source_id": "vision-emulator-1",
+            "event_type": "inspection_observed",
+            "station_id": "station-assembly",
+            "occurred_at": "2026-09-26T10:10:00+00:00",
+            "operator_id": null,
+            "received_at": "2026-09-26T16:27:46.740910+00:00",
+            "equipment_id": null,
+            "time_quality": "synchronized",
+            "operation_run_id": "run-assembly-001",
+            "projection_status": "unresolved"
+          }
+        ],
+        "operations": [
+          {
+            "issues": [],
+            "status": "completed",
+            "line_id": "line-1",
+            "shift_id": "shift-1",
+            "durations": [
+              {
+                "kind": "station_elapsed",
+                "unit": "s",
+                "value": 120,
+                "origin": "calculated",
+                "unavailable_reason": null,
+                "evidence_record_ids": [
+                  "4be1df1d-a767-496e-9240-c43bb26089db",
+                  "02eb0582-5aff-44f4-80c7-1a86001c56b8"
+                ]
+              }
+            ],
+            "started_at": "2026-09-26T10:03:00+00:00",
+            "station_id": "station-machining",
+            "finished_at": "2026-09-26T10:05:00+00:00",
+            "operator_id": "operator-01",
+            "equipment_id": "machine-01",
+            "operation_run_id": "run-machining-001",
+            "operation_type_id": "machining",
+            "evidence_record_ids": [
+              "4be1df1d-a767-496e-9240-c43bb26089db",
+              "02eb0582-5aff-44f4-80c7-1a86001c56b8"
+            ],
+            "previous_operation_run_id": null
+          },
+          {
+            "issues": [],
+            "status": "completed",
+            "line_id": "line-1",
+            "shift_id": "shift-1",
+            "durations": [
+              {
+                "kind": "station_elapsed",
+                "unit": "s",
+                "value": 120,
+                "origin": "calculated",
+                "unavailable_reason": null,
+                "evidence_record_ids": [
+                  "95268142-6d24-462c-a16f-a22866ae0043",
+                  "ef20479d-fcc3-4500-a34f-6d8118585efd"
+                ]
+              }
+            ],
+            "started_at": "2026-09-26T10:07:00+00:00",
+            "station_id": "station-assembly",
+            "finished_at": "2026-09-26T10:09:00+00:00",
+            "operator_id": "operator-02",
+            "equipment_id": "machine-02",
+            "operation_run_id": "run-assembly-001",
+            "operation_type_id": "assembly",
+            "evidence_record_ids": [
+              "95268142-6d24-462c-a16f-a22866ae0043",
+              "ef20479d-fcc3-4500-a34f-6d8118585efd"
+            ],
+            "previous_operation_run_id": null
+          }
+        ],
+        "item_type_id": "bracket-demo",
+        "component_ids": [
+          "bracket-001",
+          "insert-001"
+        ],
+        "work_order_id": "order-001",
+        "assembly_version": "1",
+        "processor_version": "traceability-v1",
+        "passport_record_ids": [
+          "7f7979a2-f97c-4388-a088-9c36602066e0"
+        ]
+      }
+    },
+    "evidence_record_ids": [
+      "7f7979a2-f97c-4388-a088-9c36602066e0",
+      "77013c14-7d07-43c0-ac34-78b9ebd4478a",
+      "4be1df1d-a767-496e-9240-c43bb26089db",
+      "02eb0582-5aff-44f4-80c7-1a86001c56b8",
+      "6d1d09dd-a233-4b74-a359-a630500f3b71",
+      "95268142-6d24-462c-a16f-a22866ae0043",
+      "ef20479d-fcc3-4500-a34f-6d8118585efd",
+      "795341ac-4ebc-4f7e-94af-81c915914a5d"
+    ],
+    "decision_ids": [],
+    "analysis_snapshot": {
+      "kpi": {
+        "blocked_items": 1,
+        "inspected_items": 1,
+        "repeat_controls": 0,
+        "confirmed_defects": 0,
+        "rework_operations": 0,
+        "review_required_items": 0,
+        "open_confirmed_defects": 0,
+        "open_nonconforming_items": 0,
+        "unresolved_cause_defects": 0,
+        "confirmed_operator_errors": 0,
+        "established_cause_defects": 0,
+        "resolved_confirmed_defects": 0,
+        "released_after_reinspection": 0,
+        "confirmed_nonconforming_items": 0
+      },
+      "observations": [
+        {
+          "defect_index": null,
+          "result": "no_defect_signs",
+          "item_id": "assembly-001",
+          "quality": "good",
+          "cycle_id": "cycle-1",
+          "record_id": "6d1d09dd-a233-4b74-a359-a630500f3b71",
+          "region_id": "face-A",
+          "source_id": "vision-emulator-1",
+          "created_at": "2026-09-26T16:27:46.301170+00:00",
+          "defect_ref": null,
+          "defect_type": null,
+          "occurred_at": "2026-09-26T10:06:00+00:00",
+          "component_id": "insert-001",
+          "time_quality": "synchronized",
+          "checkpoint_id": "after-machining",
+          "observation_id": "6d1d09dd-a233-4b74-a359-a630500f3b71:0",
+          "source_event_id": "2f05b2b0-2660-4830-a804-6eb050e31282",
+          "analyzer_version": "emulator-1",
+          "effective_result": "no_defect_signs",
+          "inspection_phase": "after_operation",
+          "operation_run_id": "run-machining-001",
+          "control_session_id": "assembly-001-initial-machining",
+          "identification_status": "reliable",
+          "replaces_observation_id": null
+        },
+        {
+          "defect_index": null,
+          "result": "no_defect_signs",
+          "item_id": "assembly-001",
+          "quality": "good",
+          "cycle_id": "cycle-1",
+          "record_id": "77013c14-7d07-43c0-ac34-78b9ebd4478a",
+          "region_id": "face-A",
+          "source_id": "vision-emulator-1",
+          "created_at": "2026-09-26T16:27:45.962158+00:00",
+          "defect_ref": null,
+          "defect_type": null,
+          "occurred_at": "2026-09-26T10:02:00+00:00",
+          "component_id": "insert-001",
+          "time_quality": "synchronized",
+          "checkpoint_id": "incoming-surface",
+          "observation_id": "77013c14-7d07-43c0-ac34-78b9ebd4478a:0",
+          "source_event_id": "8d05ce3f-f522-4295-8cbe-44c1b5777823",
+          "analyzer_version": "emulator-1",
+          "effective_result": "no_defect_signs",
+          "inspection_phase": "incoming",
+          "operation_run_id": null,
+          "control_session_id": "assembly-001-initial-incoming",
+          "identification_status": "reliable",
+          "replaces_observation_id": null
+        },
+        {
+          "defect_index": 0,
+          "result": "defect_signs",
+          "item_id": "assembly-001",
+          "quality": "good",
+          "cycle_id": "cycle-1",
+          "record_id": "795341ac-4ebc-4f7e-94af-81c915914a5d",
+          "region_id": "face-A",
+          "source_id": "vision-emulator-1",
+          "created_at": "2026-09-26T16:27:46.767330+00:00",
+          "defect_ref": "mark-001",
+          "defect_type": "surface-mark",
+          "occurred_at": "2026-09-26T10:10:00+00:00",
+          "component_id": "insert-001",
+          "time_quality": "synchronized",
+          "checkpoint_id": "final-surface",
+          "observation_id": "795341ac-4ebc-4f7e-94af-81c915914a5d:0",
+          "source_event_id": "63fb4bc4-6040-410f-891b-f475bb1b1af7",
+          "analyzer_version": "emulator-1",
+          "effective_result": "defect_signs",
+          "inspection_phase": "final",
+          "operation_run_id": "run-assembly-001",
+          "control_session_id": "assembly-001-initial-final",
+          "identification_status": "reliable",
+          "replaces_observation_id": null
+        }
+      ],
+      "nonconformities": [
+        {
+          "status": "pending_review",
+          "item_id": "assembly-001",
+          "cause_status": "unresolved",
+          "decision_ids": [],
+          "candidate_key": [
+            "vision-emulator-1",
+            "assembly-001",
+            "insert-001",
+            "face-A",
+            "mark-001"
+          ],
+          "cause_category": "unknown",
+          "resolution_ids": [],
+          "review_required": false,
+          "nonconformity_id": "ed677b2e-7ada-4da5-9eb0-4286b4146703",
+          "cause_limitations": [
+            "cause_not_established"
+          ],
+          "resolution_status": "not_applicable",
+          "cause_evidence_record_ids": []
+        }
+      ],
+      "scope_constraints": {}
+    },
+    "processor_version": "quality-v2",
+    "control_assessments": [
+      {
+        "cycle_id": "cycle-1",
+        "region_id": "face-A",
+        "component_id": "insert-001",
+        "checkpoint_id": "incoming-surface",
+        "excluded_inputs": [],
+        "inspection_phase": "incoming",
+        "operation_run_id": null,
+        "assessment_status": "assessable",
+        "effective_results": [
+          "no_defect_signs"
+        ],
+        "control_session_id": "assembly-001-initial-incoming",
+        "requirement_version": "1:quality-v2:emulator-1",
+        "selected_record_ids": [
+          "77013c14-7d07-43c0-ac34-78b9ebd4478a"
+        ],
+        "contradicting_record_ids": []
+      },
+      {
+        "cycle_id": "cycle-1",
+        "region_id": "face-A",
+        "component_id": "insert-001",
+        "checkpoint_id": "after-machining",
+        "excluded_inputs": [],
+        "inspection_phase": "after_operation",
+        "operation_run_id": "run-machining-001",
+        "assessment_status": "assessable",
+        "effective_results": [
+          "no_defect_signs"
+        ],
+        "control_session_id": "assembly-001-initial-machining",
+        "requirement_version": "1:quality-v2:emulator-1",
+        "selected_record_ids": [
+          "6d1d09dd-a233-4b74-a359-a630500f3b71"
+        ],
+        "contradicting_record_ids": []
+      },
+      {
+        "cycle_id": "cycle-1",
+        "region_id": "face-A",
+        "component_id": "insert-001",
+        "checkpoint_id": "final-surface",
+        "excluded_inputs": [],
+        "inspection_phase": "final",
+        "operation_run_id": "run-assembly-001",
+        "assessment_status": "assessable",
+        "effective_results": [
+          "defect_signs"
+        ],
+        "control_session_id": "assembly-001-initial-final",
+        "requirement_version": "1:quality-v2:emulator-1",
+        "selected_record_ids": [
+          "795341ac-4ebc-4f7e-94af-81c915914a5d"
+        ],
+        "contradicting_record_ids": []
+      }
+    ],
+    "control_cycle_id": "cycle-1",
+    "inputs": [
+      {
+        "record_id": "7f7979a2-f97c-4388-a088-9c36602066e0",
+        "source_id": "line-emulator-1",
+        "event_id": "42867cd7-6ec1-4830-8e83-57f41175145f",
+        "content_digest": "662324b590e885deab1f4296d7f26962ef21ff3d05c835cc70229ce567b2db2c",
+        "occurred_at": "2026-09-26T10:01:00+00:00",
+        "received_at": "2026-09-26T16:27:45.863221+00:00",
+        "role": "used",
+        "reason": "production_context_evidence",
+        "observation_ids": []
+      },
+      {
+        "record_id": "77013c14-7d07-43c0-ac34-78b9ebd4478a",
+        "source_id": "vision-emulator-1",
+        "event_id": "8d05ce3f-f522-4295-8cbe-44c1b5777823",
+        "content_digest": "a17280bea58a3cb384d92da6c360e0828973a7812cf7c259bce9ca19bfef8c6a",
+        "occurred_at": "2026-09-26T10:02:00+00:00",
+        "received_at": "2026-09-26T16:27:45.941345+00:00",
+        "role": "used",
+        "reason": "current_cycle_control",
+        "observation_ids": [
+          "77013c14-7d07-43c0-ac34-78b9ebd4478a:0"
+        ]
+      },
+      {
+        "record_id": "4be1df1d-a767-496e-9240-c43bb26089db",
+        "source_id": "line-emulator-1",
+        "event_id": "4d846d96-a29b-4c66-bdba-9a15e1dd3e76",
+        "content_digest": "196a3ca62715852d0aa8d3e0ac3f2a0951ceef7589efc83213770a92f971e69c",
+        "occurred_at": "2026-09-26T10:03:00+00:00",
+        "received_at": "2026-09-26T16:27:46.043814+00:00",
+        "role": "used",
+        "reason": "production_context_evidence",
+        "observation_ids": []
+      },
+      {
+        "record_id": "02eb0582-5aff-44f4-80c7-1a86001c56b8",
+        "source_id": "line-emulator-1",
+        "event_id": "8a951077-0e85-4a5e-9646-ae1554ebe821",
+        "content_digest": "2357e3d76fee01fe2fbca6d737f0e30f16e4a9f1c81c180139ab7a2235b3ef6f",
+        "occurred_at": "2026-09-26T10:05:00+00:00",
+        "received_at": "2026-09-26T16:27:46.158640+00:00",
+        "role": "used",
+        "reason": "production_context_evidence",
+        "observation_ids": []
+      },
+      {
+        "record_id": "6d1d09dd-a233-4b74-a359-a630500f3b71",
+        "source_id": "vision-emulator-1",
+        "event_id": "2f05b2b0-2660-4830-a804-6eb050e31282",
+        "content_digest": "dc86d1ce301f807ca8fac1627009a139156504a10d5ad4c2b040a578fb0f754d",
+        "occurred_at": "2026-09-26T10:06:00+00:00",
+        "received_at": "2026-09-26T16:27:46.278588+00:00",
+        "role": "used",
+        "reason": "current_cycle_control",
+        "observation_ids": [
+          "6d1d09dd-a233-4b74-a359-a630500f3b71:0"
+        ]
+      },
+      {
+        "record_id": "95268142-6d24-462c-a16f-a22866ae0043",
+        "source_id": "line-emulator-1",
+        "event_id": "8b4d371d-dc50-46c6-b22a-3abced9e67a3",
+        "content_digest": "cdc959be74c69905cb43c6c2d20e9aad7411faf228253be611b63f88ad0b608e",
+        "occurred_at": "2026-09-26T10:07:00+00:00",
+        "received_at": "2026-09-26T16:27:46.423492+00:00",
+        "role": "used",
+        "reason": "production_context_evidence",
+        "observation_ids": []
+      },
+      {
+        "record_id": "ef20479d-fcc3-4500-a34f-6d8118585efd",
+        "source_id": "line-emulator-1",
+        "event_id": "3603b934-6bfc-4b9c-8fd6-7a48f8a3f596",
+        "content_digest": "305eceaa70deff8d5645ea996968f32a21f096861ea030ec7b00addf5468fae6",
+        "occurred_at": "2026-09-26T10:09:00+00:00",
+        "received_at": "2026-09-26T16:27:46.577996+00:00",
+        "role": "used",
+        "reason": "production_context_evidence",
+        "observation_ids": []
+      },
+      {
+        "record_id": "795341ac-4ebc-4f7e-94af-81c915914a5d",
+        "source_id": "vision-emulator-1",
+        "event_id": "63fb4bc4-6040-410f-891b-f475bb1b1af7",
+        "content_digest": "225b7e52b790997a1ad5424a2236d475862e6d6d3c9bffe33d428a137f20fc32",
+        "occurred_at": "2026-09-26T10:10:00+00:00",
+        "received_at": "2026-09-26T16:27:46.740910+00:00",
+        "role": "used",
+        "reason": "current_cycle_control",
+        "observation_ids": [
+          "795341ac-4ebc-4f7e-94af-81c915914a5d:0"
+        ]
+      }
+    ],
+    "pinned_versions": {
+      "work_order": "1",
+      "route": "1",
+      "control_plan": "1",
+      "design_composition": "1",
+      "factual_composition": null,
+      "mapping": "role2-bracket-demo@2",
+      "rules": "quality-v2",
+      "processor": "quality-v2",
+      "links": null
+    },
+    "completeness": [
+      {
+        "cycle_id": "cycle-1",
+        "region_id": "face-A",
+        "component_id": "insert-001",
+        "checkpoint_id": "incoming-surface",
+        "excluded_inputs": [],
+        "inspection_phase": "incoming",
+        "operation_run_id": null,
+        "assessment_status": "assessable",
+        "effective_results": [
+          "no_defect_signs"
+        ],
+        "control_session_id": "assembly-001-initial-incoming",
+        "requirement_version": "1:quality-v2:emulator-1",
+        "selected_record_ids": [
+          "77013c14-7d07-43c0-ac34-78b9ebd4478a"
+        ],
+        "contradicting_record_ids": [],
+        "control_cycle_id": "cycle-1",
+        "record_ids": [
+          "77013c14-7d07-43c0-ac34-78b9ebd4478a"
+        ],
+        "method_version": "emulator-1",
+        "issues": []
+      },
+      {
+        "cycle_id": "cycle-1",
+        "region_id": "face-A",
+        "component_id": "insert-001",
+        "checkpoint_id": "after-machining",
+        "excluded_inputs": [],
+        "inspection_phase": "after_operation",
+        "operation_run_id": "run-machining-001",
+        "assessment_status": "assessable",
+        "effective_results": [
+          "no_defect_signs"
+        ],
+        "control_session_id": "assembly-001-initial-machining",
+        "requirement_version": "1:quality-v2:emulator-1",
+        "selected_record_ids": [
+          "6d1d09dd-a233-4b74-a359-a630500f3b71"
+        ],
+        "contradicting_record_ids": [],
+        "control_cycle_id": "cycle-1",
+        "record_ids": [
+          "6d1d09dd-a233-4b74-a359-a630500f3b71"
+        ],
+        "method_version": "emulator-1",
+        "issues": []
+      },
+      {
+        "cycle_id": "cycle-1",
+        "region_id": "face-A",
+        "component_id": "insert-001",
+        "checkpoint_id": "final-surface",
+        "excluded_inputs": [],
+        "inspection_phase": "final",
+        "operation_run_id": "run-assembly-001",
+        "assessment_status": "assessable",
+        "effective_results": [
+          "defect_signs"
+        ],
+        "control_session_id": "assembly-001-initial-final",
+        "requirement_version": "1:quality-v2:emulator-1",
+        "selected_record_ids": [
+          "795341ac-4ebc-4f7e-94af-81c915914a5d"
+        ],
+        "contradicting_record_ids": [],
+        "control_cycle_id": "cycle-1",
+        "record_ids": [
+          "795341ac-4ebc-4f7e-94af-81c915914a5d"
+        ],
+        "method_version": "emulator-1",
+        "issues": []
+      }
+    ],
+    "unknowns": [
+      "nonconformity:ed677b2e-7ada-4da5-9eb0-4286b4146703:pending_review"
+    ],
+    "media_available": false,
+    "previous_decisions": [],
+    "excluded_inputs": [],
+    "contradictions": [],
+    "analyzer_versions": [
+      {
+        "record_id": "6d1d09dd-a233-4b74-a359-a630500f3b71",
+        "version": "emulator-1"
+      },
+      {
+        "record_id": "77013c14-7d07-43c0-ac34-78b9ebd4478a",
+        "version": "emulator-1"
+      },
+      {
+        "record_id": "795341ac-4ebc-4f7e-94af-81c915914a5d",
+        "version": "emulator-1"
+      }
+    ]
+  },
+  "confirm": {
+    "decision_id": "7722f9a6-dfb2-4c2b-b4ee-2f535fcad753",
+    "command_type": "nonconformity_decision",
+    "target_id": "ed677b2e-7ada-4da5-9eb0-4286b4146703",
+    "action": "confirm",
+    "reason": "P6 synthetic independent acceptance",
+    "actor_id": "controller",
+    "basis_id": "dc3b4240-aaf6-43e7-ad57-b6dc1e9db239",
+    "reviewed_revision": 9,
+    "context_revision": 10,
+    "supersedes_id": null,
+    "created_at": "2026-09-26T16:27:48.168571+00:00",
+    "rework_operation_id": null,
+    "observation_ids": [],
+    "cause_status": "unresolved",
+    "cause_category": "unknown",
+    "cause_evidence_record_ids": [],
+    "operation_run_id": null,
+    "operator_id": null,
+    "action_record_id": null,
+    "control_record_ids": [],
+    "control_cycle_id": "cycle-1"
+  },
+  "rework": {
+    "decision_id": "abb97d66-6740-49d9-8270-2933e6ab9166",
+    "command_type": "item_disposition",
+    "target_id": "assembly-001",
+    "action": "rework",
+    "reason": "P6 synthetic independent acceptance",
+    "actor_id": "controller",
+    "basis_id": "a2db1dfc-343b-4d0a-8f9c-07d2f7d82587",
+    "reviewed_revision": 10,
+    "context_revision": 11,
+    "supersedes_id": null,
+    "created_at": "2026-09-26T16:27:48.832763+00:00",
+    "rework_operation_id": null,
+    "observation_ids": [],
+    "cause_status": "unresolved",
+    "cause_category": "unknown",
+    "cause_evidence_record_ids": [],
+    "operation_run_id": null,
+    "operator_id": null,
+    "action_record_id": null,
+    "control_record_ids": [],
+    "release_allowed_now": false,
+    "blockers": [
+      "nonconformity:ed677b2e-7ada-4da5-9eb0-4286b4146703:open"
+    ],
+    "control_cycle_id": "cycle-1"
+  },
+  "cycle": {
+    "cycle_id": "db601e28-eba9-5ce7-b92e-59ee64ef6fbd",
+    "context_revision": 12,
+    "control_sessions": {
+      "incoming-surface": "p6-incoming-surface",
+      "after-machining": "p6-after-machining",
+      "final-surface": "p6-final-surface"
+    },
+    "checkpoint_operation_run_ids": {
+      "incoming-surface": null,
+      "after-machining": "repair-1",
+      "final-surface": "repair-1"
+    },
+    "control_cycle_id": "db601e28-eba9-5ce7-b92e-59ee64ef6fbd"
+  },
+  "records": [
+    "29075ab1-96ba-4760-87cc-950b029c6150",
+    "b953fb7c-8b15-4fbc-ba47-c9a832ad91fa",
+    "21c5d2a0-7bec-45ee-9747-ed0eff0b94aa"
+  ],
+  "premature": {
+    "error": {
+      "code": "invalid_transition",
+      "message": "Resolution requires the registered completed rework operation for this cycle.",
+      "details": []
+    },
+    "request_id": "532a0c27-5fe1-4141-84f3-a3aad5bb2b0f"
+  },
+  "earlyRelease": {
+    "error": {
+      "code": "release_blocked",
+      "message": "Release is blocked by the current quality context.",
+      "details": [],
+      "blockers": [
+        "nonconformity:ed677b2e-7ada-4da5-9eb0-4286b4146703:open",
+        "review_required:ed677b2e-7ada-4da5-9eb0-4286b4146703",
+        "context_review_required",
+        "disposition_review_required"
+      ]
+    },
+    "request_id": "7a17cacf-fd5b-43f9-8dad-dccb6823c784"
+  },
+  "resolve": {
+    "decision_id": "1a5f6df6-e916-4a0a-80b9-74ebb933b8ee",
+    "command_type": "resolution_decision",
+    "target_id": "ed677b2e-7ada-4da5-9eb0-4286b4146703",
+    "action": "resolve",
+    "reason": "P6 synthetic independent acceptance",
+    "actor_id": "controller",
+    "basis_id": "2d5f8a99-1ec1-4339-809e-107b06330898",
+    "reviewed_revision": 17,
+    "context_revision": 18,
+    "supersedes_id": null,
+    "created_at": "2026-09-26T16:27:55.988678+00:00",
+    "rework_operation_id": "repair-1",
+    "observation_ids": [
+      "21c5d2a0-7bec-45ee-9747-ed0eff0b94aa:0"
+    ],
+    "cause_status": "unresolved",
+    "cause_category": "unknown",
+    "cause_evidence_record_ids": [],
+    "operation_run_id": null,
+    "operator_id": null,
+    "action_record_id": null,
+    "control_record_ids": [
+      "21c5d2a0-7bec-45ee-9747-ed0eff0b94aa"
+    ],
+    "control_cycle_id": "db601e28-eba9-5ce7-b92e-59ee64ef6fbd"
+  },
+  "release": {
+    "decision_id": "cc357a5b-2d35-4a1f-b24a-ae6d0fd3cb93",
+    "command_type": "item_disposition",
+    "target_id": "assembly-001",
+    "action": "released",
+    "reason": "P6 synthetic independent acceptance",
+    "actor_id": "controller",
+    "basis_id": "3e989bdc-8a9c-420e-953c-cdeeef92b76e",
+    "reviewed_revision": 18,
+    "context_revision": 19,
+    "supersedes_id": "abb97d66-6740-49d9-8270-2933e6ab9166",
+    "created_at": "2026-09-26T16:27:57.449307+00:00",
+    "rework_operation_id": null,
+    "observation_ids": [],
+    "cause_status": "unresolved",
+    "cause_category": "unknown",
+    "cause_evidence_record_ids": [],
+    "operation_run_id": null,
+    "operator_id": null,
+    "action_record_id": null,
+    "control_record_ids": [],
+    "release_allowed_now": true,
+    "blockers": [],
+    "control_cycle_id": "db601e28-eba9-5ce7-b92e-59ee64ef6fbd"
+  },
+  "final": {
+    "item_id": "assembly-001",
+    "context_revision": 19,
+    "control_cycle_id": "db601e28-eba9-5ce7-b92e-59ee64ef6fbd",
+    "basis_id": "ff789f90-db93-484b-89fb-44ab791ceaa7",
+    "disposition": "released",
+    "release_allowed_now": true,
+    "review_required": false,
+    "blockers": [],
+    "completeness": [
+      {
+        "checkpoint_id": "incoming-surface",
+        "requirement_version": "1:quality-v2:emulator-1",
+        "cycle_id": "db601e28-eba9-5ce7-b92e-59ee64ef6fbd",
+        "component_id": "insert-001",
+        "region_id": "face-A",
+        "inspection_phase": "incoming",
+        "operation_run_id": null,
+        "control_session_id": "p6-incoming-surface",
+        "assessment_status": "assessable",
+        "effective_results": [
+          "no_defect_signs"
+        ],
+        "selected_record_ids": [
+          "29075ab1-96ba-4760-87cc-950b029c6150"
+        ],
+        "contradicting_record_ids": [],
+        "excluded_inputs": [],
+        "control_cycle_id": "db601e28-eba9-5ce7-b92e-59ee64ef6fbd",
+        "record_ids": [
+          "29075ab1-96ba-4760-87cc-950b029c6150"
+        ],
+        "method_version": "emulator-1",
+        "issues": []
+      },
+      {
+        "checkpoint_id": "after-machining",
+        "requirement_version": "1:quality-v2:emulator-1",
+        "cycle_id": "db601e28-eba9-5ce7-b92e-59ee64ef6fbd",
+        "component_id": "insert-001",
+        "region_id": "face-A",
+        "inspection_phase": "after_operation",
+        "operation_run_id": "repair-1",
+        "control_session_id": "p6-after-machining",
+        "assessment_status": "assessable",
+        "effective_results": [
+          "no_defect_signs"
+        ],
+        "selected_record_ids": [
+          "b953fb7c-8b15-4fbc-ba47-c9a832ad91fa"
+        ],
+        "contradicting_record_ids": [],
+        "excluded_inputs": [],
+        "control_cycle_id": "db601e28-eba9-5ce7-b92e-59ee64ef6fbd",
+        "record_ids": [
+          "b953fb7c-8b15-4fbc-ba47-c9a832ad91fa"
+        ],
+        "method_version": "emulator-1",
+        "issues": []
+      },
+      {
+        "checkpoint_id": "final-surface",
+        "requirement_version": "1:quality-v2:emulator-1",
+        "cycle_id": "db601e28-eba9-5ce7-b92e-59ee64ef6fbd",
+        "component_id": "insert-001",
+        "region_id": "face-A",
+        "inspection_phase": "final",
+        "operation_run_id": "repair-1",
+        "control_session_id": "p6-final-surface",
+        "assessment_status": "assessable",
+        "effective_results": [
+          "no_defect_signs"
+        ],
+        "selected_record_ids": [
+          "21c5d2a0-7bec-45ee-9747-ed0eff0b94aa"
+        ],
+        "contradicting_record_ids": [],
+        "excluded_inputs": [],
+        "control_cycle_id": "db601e28-eba9-5ce7-b92e-59ee64ef6fbd",
+        "record_ids": [
+          "21c5d2a0-7bec-45ee-9747-ed0eff0b94aa"
+        ],
+        "method_version": "emulator-1",
+        "issues": []
+      }
+    ],
+    "nonconformities": [
+      {
+        "id": "ed677b2e-7ada-4da5-9eb0-4286b4146703",
+        "item_id": "assembly-001",
+        "context_revision": 19,
+        "basis_id": "d111ec68-1f77-47b5-9b26-f2914289ab0d",
+        "status": "confirmed",
+        "resolution_status": "resolved",
+        "review_required": false,
+        "record_ids": [
+          "795341ac-4ebc-4f7e-94af-81c915914a5d"
+        ],
+        "cause": {
+          "status": "unresolved",
+          "category": "unknown",
+          "record_ids": [],
+          "limitations": [
+            "cause_not_established"
+          ]
+        },
+        "decisions": [
+          {
+            "decision_id": "7722f9a6-dfb2-4c2b-b4ee-2f535fcad753",
+            "command_type": "nonconformity_decision",
+            "target_id": "ed677b2e-7ada-4da5-9eb0-4286b4146703",
+            "action": "confirm",
+            "reason": "P6 synthetic independent acceptance",
+            "actor_id": "controller",
+            "basis_id": "dc3b4240-aaf6-43e7-ad57-b6dc1e9db239",
+            "reviewed_revision": 9,
+            "context_revision": 10,
+            "supersedes_id": null,
+            "created_at": "2026-09-26T16:27:48.168571+00:00",
+            "rework_operation_id": null,
+            "observation_ids": [],
+            "cause_status": "unresolved",
+            "cause_category": "unknown",
+            "cause_evidence_record_ids": [],
+            "operation_run_id": null,
+            "operator_id": null,
+            "action_record_id": null,
+            "control_record_ids": [],
+            "control_cycle_id": "cycle-1"
+          },
+          {
+            "decision_id": "1a5f6df6-e916-4a0a-80b9-74ebb933b8ee",
+            "command_type": "resolution_decision",
+            "target_id": "ed677b2e-7ada-4da5-9eb0-4286b4146703",
+            "action": "resolve",
+            "reason": "P6 synthetic independent acceptance",
+            "actor_id": "controller",
+            "basis_id": "2d5f8a99-1ec1-4339-809e-107b06330898",
+            "reviewed_revision": 17,
+            "context_revision": 18,
+            "supersedes_id": null,
+            "created_at": "2026-09-26T16:27:55.988678+00:00",
+            "rework_operation_id": "repair-1",
+            "observation_ids": [
+              "21c5d2a0-7bec-45ee-9747-ed0eff0b94aa:0"
+            ],
+            "cause_status": "unresolved",
+            "cause_category": "unknown",
+            "cause_evidence_record_ids": [],
+            "operation_run_id": null,
+            "operator_id": null,
+            "action_record_id": null,
+            "control_record_ids": [
+              "21c5d2a0-7bec-45ee-9747-ed0eff0b94aa"
+            ],
+            "control_cycle_id": "db601e28-eba9-5ce7-b92e-59ee64ef6fbd"
+          }
+        ]
+      }
+    ],
+    "decisions": [
+      {
+        "decision_id": "7722f9a6-dfb2-4c2b-b4ee-2f535fcad753",
+        "command_type": "nonconformity_decision",
+        "target_id": "ed677b2e-7ada-4da5-9eb0-4286b4146703",
+        "action": "confirm",
+        "reason": "P6 synthetic independent acceptance",
+        "actor_id": "controller",
+        "basis_id": "dc3b4240-aaf6-43e7-ad57-b6dc1e9db239",
+        "reviewed_revision": 9,
+        "context_revision": 10,
+        "supersedes_id": null,
+        "created_at": "2026-09-26T16:27:48.168571+00:00",
+        "rework_operation_id": null,
+        "observation_ids": [],
+        "cause_status": "unresolved",
+        "cause_category": "unknown",
+        "cause_evidence_record_ids": [],
+        "operation_run_id": null,
+        "operator_id": null,
+        "action_record_id": null,
+        "control_record_ids": [],
+        "control_cycle_id": "cycle-1"
+      },
+      {
+        "decision_id": "1a5f6df6-e916-4a0a-80b9-74ebb933b8ee",
+        "command_type": "resolution_decision",
+        "target_id": "ed677b2e-7ada-4da5-9eb0-4286b4146703",
+        "action": "resolve",
+        "reason": "P6 synthetic independent acceptance",
+        "actor_id": "controller",
+        "basis_id": "2d5f8a99-1ec1-4339-809e-107b06330898",
+        "reviewed_revision": 17,
+        "context_revision": 18,
+        "supersedes_id": null,
+        "created_at": "2026-09-26T16:27:55.988678+00:00",
+        "rework_operation_id": "repair-1",
+        "observation_ids": [
+          "21c5d2a0-7bec-45ee-9747-ed0eff0b94aa:0"
+        ],
+        "cause_status": "unresolved",
+        "cause_category": "unknown",
+        "cause_evidence_record_ids": [],
+        "operation_run_id": null,
+        "operator_id": null,
+        "action_record_id": null,
+        "control_record_ids": [
+          "21c5d2a0-7bec-45ee-9747-ed0eff0b94aa"
+        ],
+        "control_cycle_id": "db601e28-eba9-5ce7-b92e-59ee64ef6fbd"
+      },
+      {
+        "decision_id": "abb97d66-6740-49d9-8270-2933e6ab9166",
+        "command_type": "item_disposition",
+        "target_id": "assembly-001",
+        "action": "rework",
+        "reason": "P6 synthetic independent acceptance",
+        "actor_id": "controller",
+        "basis_id": "a2db1dfc-343b-4d0a-8f9c-07d2f7d82587",
+        "reviewed_revision": 10,
+        "context_revision": 11,
+        "supersedes_id": null,
+        "created_at": "2026-09-26T16:27:48.832763+00:00",
+        "rework_operation_id": null,
+        "observation_ids": [],
+        "cause_status": "unresolved",
+        "cause_category": "unknown",
+        "cause_evidence_record_ids": [],
+        "operation_run_id": null,
+        "operator_id": null,
+        "action_record_id": null,
+        "control_record_ids": [],
+        "control_cycle_id": "cycle-1"
+      },
+      {
+        "decision_id": "cc357a5b-2d35-4a1f-b24a-ae6d0fd3cb93",
+        "command_type": "item_disposition",
+        "target_id": "assembly-001",
+        "action": "released",
+        "reason": "P6 synthetic independent acceptance",
+        "actor_id": "controller",
+        "basis_id": "3e989bdc-8a9c-420e-953c-cdeeef92b76e",
+        "reviewed_revision": 18,
+        "context_revision": 19,
+        "supersedes_id": "abb97d66-6740-49d9-8270-2933e6ab9166",
+        "created_at": "2026-09-26T16:27:57.449307+00:00",
+        "rework_operation_id": null,
+        "observation_ids": [],
+        "cause_status": "unresolved",
+        "cause_category": "unknown",
+        "cause_evidence_record_ids": [],
+        "operation_run_id": null,
+        "operator_id": null,
+        "action_record_id": null,
+        "control_record_ids": [],
+        "control_cycle_id": "db601e28-eba9-5ce7-b92e-59ee64ef6fbd"
+      }
+    ]
+  },
+  "metrics": {
+    "item_ids": [
+      "assembly-001"
+    ],
+    "counts": {
+      "inspected_items": 1,
+      "confirmed_nonconforming_items": 1,
+      "confirmed_defects": 1,
+      "open_confirmed_defects": 0,
+      "resolved_confirmed_defects": 1,
+      "open_nonconforming_items": 0,
+      "review_required_items": 0,
+      "unresolved_cause_defects": 1,
+      "established_cause_defects": 0,
+      "confirmed_operator_errors": 0,
+      "rework_operations": 1,
+      "repeat_controls": 3,
+      "blocked_items": 0,
+      "released_after_reinspection": 1
+    },
+    "computed_at": "2026-09-26T16:27:58.313216+00:00"
+  },
+  "saved": {
+    "body": {
+      "blockers": [],
+      "confirmed_nonconformities": [
+        {
+          "basis_ids": [
+            "dc3b4240-aaf6-43e7-ad57-b6dc1e9db239",
+            "2d5f8a99-1ec1-4339-809e-107b06330898"
+          ],
+          "cause_category": "unknown",
+          "cause_status": "unresolved",
+          "decision_id": "7722f9a6-dfb2-4c2b-b4ee-2f535fcad753",
+          "nonconformity_id": "ed677b2e-7ada-4da5-9eb0-4286b4146703",
+          "resolution_id": "1a5f6df6-e916-4a0a-80b9-74ebb933b8ee",
+          "resolution_status": "resolved"
+        }
+      ],
+      "context_revision": 19,
+      "control_cycle_id": "db601e28-eba9-5ce7-b92e-59ee64ef6fbd",
+      "disposition": "released",
+      "disposition_decision": {
+        "action": "released",
+        "actor_id": "controller",
+        "basis_id": "3e989bdc-8a9c-420e-953c-cdeeef92b76e",
+        "decision_id": "cc357a5b-2d35-4a1f-b24a-ae6d0fd3cb93",
+        "reason": "P6 synthetic independent acceptance",
+        "reviewed_revision": 18
+      },
+      "external_item_id": "assembly-001",
+      "external_order_id": "order-001",
+      "external_system": "erp-demo",
+      "message_id": "87cd8f16-8913-4901-9a1e-d157702125fc",
+      "previous_message_id": "5714eb25-91de-43a0-8669-e320c94ce587",
+      "producer_id": "efqa-demo",
+      "release_allowed_now": true,
+      "result_version": 19,
+      "review_required": false
+    },
+    "ack": {
+      "producer_id": "efqa-demo",
+      "external_system": "erp-demo",
+      "external_order_id": "order-001",
+      "external_item_id": "assembly-001",
+      "message_id": "87cd8f16-8913-4901-9a1e-d157702125fc",
+      "result_version": 19,
+      "content_digest": "da5f6844a2c26edbdea2c708f35f5cfa6bff8f5e2ece2d3eee92e80967f76948",
+      "status": "accepted",
+      "application_status": "applied",
+      "received_at": "2026-09-26T16:27:58.670721+00:00",
+      "current_version_at_accept": 19
+    }
+  },
+  "acknowledged": {
+    "message_id": "87cd8f16-8913-4901-9a1e-d157702125fc",
+    "item_id": "assembly-001",
+    "result_version": 19,
+    "previous_message_id": "5714eb25-91de-43a0-8669-e320c94ce587",
+    "context_revision": 19,
+    "payload": {
+      "blockers": [],
+      "message_id": "87cd8f16-8913-4901-9a1e-d157702125fc",
+      "disposition": "released",
+      "producer_id": "efqa-demo",
+      "result_version": 19,
+      "external_system": "erp-demo",
+      "review_required": false,
+      "context_revision": 19,
+      "control_cycle_id": "db601e28-eba9-5ce7-b92e-59ee64ef6fbd",
+      "external_item_id": "assembly-001",
+      "external_order_id": "order-001",
+      "previous_message_id": "5714eb25-91de-43a0-8669-e320c94ce587",
+      "release_allowed_now": true,
+      "disposition_decision": {
+        "action": "released",
+        "reason": "P6 synthetic independent acceptance",
+        "actor_id": "controller",
+        "basis_id": "3e989bdc-8a9c-420e-953c-cdeeef92b76e",
+        "decision_id": "cc357a5b-2d35-4a1f-b24a-ae6d0fd3cb93",
+        "reviewed_revision": 18
+      },
+      "confirmed_nonconformities": [
+        {
+          "basis_ids": [
+            "dc3b4240-aaf6-43e7-ad57-b6dc1e9db239",
+            "2d5f8a99-1ec1-4339-809e-107b06330898"
+          ],
+          "decision_id": "7722f9a6-dfb2-4c2b-b4ee-2f535fcad753",
+          "cause_status": "unresolved",
+          "resolution_id": "1a5f6df6-e916-4a0a-80b9-74ebb933b8ee",
+          "cause_category": "unknown",
+          "nonconformity_id": "ed677b2e-7ada-4da5-9eb0-4286b4146703",
+          "resolution_status": "resolved"
+        }
+      ]
+    },
+    "content_digest": "da5f6844a2c26edbdea2c708f35f5cfa6bff8f5e2ece2d3eee92e80967f76948",
+    "ack": {
+      "status": "duplicate",
+      "message_id": "87cd8f16-8913-4901-9a1e-d157702125fc",
+      "producer_id": "efqa-demo",
+      "received_at": "2026-09-26T16:27:58.670721+00:00",
+      "content_digest": "da5f6844a2c26edbdea2c708f35f5cfa6bff8f5e2ece2d3eee92e80967f76948",
+      "result_version": 19,
+      "external_system": "erp-demo",
+      "external_item_id": "assembly-001",
+      "external_order_id": "order-001",
+      "application_status": "applied",
+      "current_version_at_accept": 19
+    },
+    "created_at": "2026-09-26T16:27:57.449819+00:00",
+    "status": "acknowledged",
+    "attempts": 1,
+    "last_error": null,
+    "next_attempt_at": "2026-09-26T16:28:02.121517+00:00",
+    "lease_until": null
+  },
+  "currentErp": {
+    "current": {
+      "body": {
+        "blockers": [],
+        "confirmed_nonconformities": [
+          {
+            "basis_ids": [
+              "dc3b4240-aaf6-43e7-ad57-b6dc1e9db239",
+              "2d5f8a99-1ec1-4339-809e-107b06330898"
+            ],
+            "cause_category": "unknown",
+            "cause_status": "unresolved",
+            "decision_id": "7722f9a6-dfb2-4c2b-b4ee-2f535fcad753",
+            "nonconformity_id": "ed677b2e-7ada-4da5-9eb0-4286b4146703",
+            "resolution_id": "1a5f6df6-e916-4a0a-80b9-74ebb933b8ee",
+            "resolution_status": "resolved"
+          }
+        ],
+        "context_revision": 19,
+        "control_cycle_id": "db601e28-eba9-5ce7-b92e-59ee64ef6fbd",
+        "disposition": "released",
+        "disposition_decision": {
+          "action": "released",
+          "actor_id": "controller",
+          "basis_id": "3e989bdc-8a9c-420e-953c-cdeeef92b76e",
+          "decision_id": "cc357a5b-2d35-4a1f-b24a-ae6d0fd3cb93",
+          "reason": "P6 synthetic independent acceptance",
+          "reviewed_revision": 18
+        },
+        "external_item_id": "assembly-001",
+        "external_order_id": "order-001",
+        "external_system": "erp-demo",
+        "message_id": "87cd8f16-8913-4901-9a1e-d157702125fc",
+        "previous_message_id": "5714eb25-91de-43a0-8669-e320c94ce587",
+        "producer_id": "efqa-demo",
+        "release_allowed_now": true,
+        "result_version": 19,
+        "review_required": false
+      },
+      "ack": {
+        "producer_id": "efqa-demo",
+        "external_system": "erp-demo",
+        "external_order_id": "order-001",
+        "external_item_id": "assembly-001",
+        "message_id": "87cd8f16-8913-4901-9a1e-d157702125fc",
+        "result_version": 19,
+        "content_digest": "da5f6844a2c26edbdea2c708f35f5cfa6bff8f5e2ece2d3eee92e80967f76948",
+        "status": "accepted",
+        "application_status": "applied",
+        "received_at": "2026-09-26T16:27:58.670721+00:00",
+        "current_version_at_accept": 19
+      }
+    },
+    "missing_version_ranges": []
+  },
+  "olderSaved": {
+    "body": {
+      "blockers": [
+        "work_order_not_resolved",
+        "assembly_not_resolved",
+        "operation_incomplete:run-machining-001",
+        "operation_incomplete:run-assembly-001",
+        "missing_checkpoint:incoming-surface",
+        "missing_checkpoint:after-machining",
+        "missing_checkpoint:final-surface"
+      ],
+      "confirmed_nonconformities": [],
+      "context_revision": 1,
+      "control_cycle_id": "cycle-1",
+      "disposition": "pending",
+      "disposition_decision": null,
+      "external_item_id": "assembly-001",
+      "external_order_id": "order-001",
+      "external_system": "erp-demo",
+      "message_id": "1e0f06a9-2819-4972-b6e0-5eadc24c85dc",
+      "previous_message_id": null,
+      "producer_id": "efqa-demo",
+      "release_allowed_now": false,
+      "result_version": 1,
+      "review_required": false
+    },
+    "ack": {
+      "producer_id": "efqa-demo",
+      "external_system": "erp-demo",
+      "external_order_id": "order-001",
+      "external_item_id": "assembly-001",
+      "message_id": "1e0f06a9-2819-4972-b6e0-5eadc24c85dc",
+      "result_version": 1,
+      "content_digest": "7af7d53fd1283b541b8c4d56a5088fe8586ce4f575a77b492b6cf1f5d52a5a98",
+      "status": "accepted",
+      "application_status": "superseded",
+      "received_at": "2026-09-26T16:28:04.763608+00:00",
+      "current_version_at_accept": 19
+    }
+  }
+}

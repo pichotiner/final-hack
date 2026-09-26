@@ -1,0 +1,10 @@
+{
+  "base_commit": "0113c9089e5177a91bdd549fd92e63dec0a1b0ea",
+  "working_tree": "M  README.md\nM  backend/README.md\nM  frontend/package-lock.json\nM  frontend/package.json\nM  frontend/src/App.tsx\nM  frontend/src/api.ts\nM  frontend/vite.config.ts\n?? backend/scripts/acceptance_demo.py\n?? docs/architecture/p6-acceptance-review.md\n?? docs/demo/\n?? frontend/scripts/acceptance.mjs\n",
+  "python": "3.11.9",
+  "os": "Windows-10-10.0.26200-SP0",
+  "node": "v24.12.0",
+  "contract": "0.4.0",
+  "synthetic": true,
+  "entry": "scripts/acceptance_demo.py"
+}

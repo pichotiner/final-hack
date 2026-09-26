@@ -56,11 +56,21 @@ export async function request<T>(path: string, token: string, body?: string): Pr
 }
 
 export const api = {
-  line: (id: string, token: string) => request<components["schemas"]["LineStatus"]>(`/api/v2/lines/${encodeURIComponent(id)}/status`, token),
-  deliveries: (token: string) => request<components["schemas"]["DeliveryPage"]>("/api/v2/integrations/deliveries", token),
   items: (token: string) => request<components["schemas"]["ItemPage"]>("/api/v2/items", token),
   item: (id: string, token: string) => request<Item>(`/api/v2/items/${encodeURIComponent(id)}`, token),
   basis: (id: string, token: string) => request<Basis>(`/api/v2/bases/${encodeURIComponent(id)}`, token),
   analytics: (token: string) => request<Analytics>("/api/v2/analytics", token),
   timeline: (id: string, token: string) => request<components["schemas"]["TimelinePage"]>(`/api/v2/items/${encodeURIComponent(id)}/timeline`, token),
+  orders: (token: string) => request<components["schemas"]["WorkOrderPage"]>("/api/v2/work-orders", token),
+  line: (id: string, token: string) => request<components["schemas"]["LineStatus"]>(`/api/v2/lines/${encodeURIComponent(id)}/status`, token),
+  deliveries: async (token: string) => {
+    const items: components["schemas"]["Delivery"][] = [];
+    let cursor: string | null = null;
+    do {
+      const page: components["schemas"]["DeliveryPage"] = await request(`/api/v2/integrations/deliveries?limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`, token);
+      items.push(...page.items);
+      cursor = page.next_cursor;
+    } while (cursor);
+    return items;
+  },
 };

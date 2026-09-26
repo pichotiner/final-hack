@@ -28,7 +28,9 @@ export default function App() {
   const [newBasis, setNewBasis] = useState<Basis | null>(null);
   const [counts, setCounts] = useState<Record<string, number> | null>(null);
   const [lineId, setLineId] = useState("line-1");
+  const [orders, setOrders] = useState<Awaited<ReturnType<typeof api.orders>> | null>(null);
   const [line, setLine] = useState<Awaited<ReturnType<typeof api.line>> | null>(null);
+  const [deliveryToken, setDeliveryToken] = useState("");
   const [deliveries, setDeliveries] = useState<Awaited<ReturnType<typeof api.deliveries>> | null>(null);
   const locked = review.phase === "sending" || review.phase === "unknown";
   const pinned = review.pinned;
@@ -152,11 +154,13 @@ export default function App() {
   const diff = oldBasis && newBasis ? basisDiff(oldBasis, newBasis) : null;
   return <main>
     <header><h1>EFQA · основания решения</h1><p>DP-01 / API v2 · работа с готовыми наблюдениями, отдельное решение ОТК</p></header>
-    <section><label>Bearer token (только память вкладки)<input type="password" value={token} disabled={locked} onChange={e => { setToken(e.target.value); setSelected(""); setLatest(null); setItems([]); setLine(null); setDeliveries(null); setCounts(null); clearReview(); }} /></label>
+    <section><label>Bearer token (только память вкладки)<input type="password" value={token} disabled={locked} onChange={e => { setToken(e.target.value); setSelected(""); setLatest(null); setItems([]); setOrders(null); setLine(null); setDeliveryToken(""); setDeliveries(null); setCounts(null); clearReview(); }} /></label>
       <button disabled={!token || locked} onClick={() => void refresh()}>Загрузить изделия</button>
+      <button disabled={!token} onClick={() => api.orders(token).then(setOrders).catch(error)}>Задания ERP</button>
       <label>Изделие<select value={selected} disabled={locked} onChange={e => { setSelected(e.target.value); setLatest(null); setHistory(null); setTarget(""); setOldBasis(null); setNewBasis(null); clearReview(); }}><option value="">Выбрать</option>{items.map(x => <option key={x.item_id}>{x.item_id}</option>)}</select></label>
       <button disabled={!token} onClick={() => api.analytics(token).then(x => setCounts(x.counts)).catch(error)}>KPI сервера</button>
       {counts && <pre>{JSON.stringify(counts, null, 2)}</pre>}
+      {orders && <div><h2>Полученные задания ERP — план, не факт выполнения</h2><table aria-label="Задания ERP"><thead><tr><th>Задание / revision</th><th>Маршрут</th><th>Экземпляры</th></tr></thead><tbody>{orders.items.map(order => <tr key={order.id}><td>{order.external_order_id} / {order.revision}</td><td>{order.route_id}@{order.route_version}</td><td>{order.item_ids.length}</td></tr>)}</tbody></table><details><summary>Профиль и полный вход ERP</summary><pre>{JSON.stringify(orders, null, 2)}</pre></details></div>}
     </section>
     <p role="status" className="message">{message}</p>
     <section><h2>Линия и доставка результата</h2>
@@ -166,7 +170,7 @@ export default function App() {
         <p>Изделий с неразрешёнными связями: {line.unresolved_items}. Активные операции: {line.active_operation_run_ids.join(", ") || "нет по данным сервера"}.</p></div>}
       <button disabled={!token} onClick={() => api.deliveries(token).then(setDeliveries).catch(error)}>Проверить доставки ERP</button>
       <p>Доступ к доставкам требует роли integration/admin. Подтверждение ERP не означает физическую доработку или отгрузку.</p>
-      {deliveries && <><pre>{JSON.stringify(deliveries.items, null, 2)}</pre>{deliveries.next_cursor && <p>Показана первая страница; это не полный список доставок.</p>}</>}
+      {deliveries && <p>Получено записей доставки: {deliveries.length}. История и ACK — в таблице ниже.</p>}
     </section>
     {displayed && <>
       {stale && <p className="warning">Появилась ревизия {review.latestRevision}. Ниже остаётся закреплённая {pinned?.item.context_revision}; данные формы не заменены. Новая команда не отправлена: явно обновите рассмотрение.</p>}
@@ -177,7 +181,7 @@ export default function App() {
         <table><thead><tr><th>Точка</th><th>Цикл</th><th>Оценимость</th><th>Основания</th></tr></thead><tbody>{displayed.completeness.map(x => <tr key={x.checkpoint_id}><td>{x.checkpoint_id}</td><td>{x.control_cycle_id}</td><td>{x.assessment_status}</td><td>{x.record_ids.join(", ") || "нет"}</td></tr>)}</tbody></table>
         <h3>Несоответствия</h3>{displayed.nonconformities.map(x => <article key={x.id}><strong>{x.id}: {x.status} / {x.resolution_status}</strong><p>Причина {x.cause.status} / {x.cause.category}; review: {String(x.review_required)}</p><p>{x.cause.limitations.join("; ")}</p></article>)}
         <button onClick={() => api.timeline(selected, token).then(setHistory).catch(error)}>История с обоими временами</button>
-        {history && <pre>{JSON.stringify(history, null, 2)}</pre>}
+        {history && <><table aria-label="История событий"><thead><tr><th>Событие / источник</th><th>Произошло</th><th>Принято</th><th>Обработка</th></tr></thead><tbody>{history.items.map(entry => <tr key={entry.record_id}><td>{entry.event_type}<br />{entry.source_id}<br />{entry.record_id}</td><td>{entry.occurred_at}</td><td>{entry.received_at}</td><td>{entry.projection_status}</td></tr>)}</tbody></table><details><summary>Подробности истории</summary><pre>{JSON.stringify(history, null, 2)}</pre></details></>}
       </section>
       <section><h2>Отдельное рассмотрение</h2>
         <label>Цель<select value={target} disabled={locked || review.phase === "idle" && pinned !== null} onChange={e => { clearReview(); setTarget(e.target.value); }}><option value="">Решение по изделию / новый цикл</option>{(latest ?? displayed).nonconformities.map(x => <option key={x.id} value={x.id}>Карточка {x.id}</option>)}</select></label>
@@ -203,9 +207,16 @@ export default function App() {
         <button onClick={() => api.basis(oldBasisId, token).then(value => { if (value.item_id !== selected) throw new Error("Основание относится к другому изделию"); setOldBasis(value); }).catch(error)}>Открыть сохранённое основание</button>
         <button onClick={() => latest && api.basis(target ? latest.nonconformities.find(x => x.id === target)?.basis_id ?? latest.basis_id : latest.basis_id, token).then(setNewBasis).catch(error)}>Сравнить с текущим B (форма не меняется)</button>
         {diff && <pre>{JSON.stringify({ diff, then: oldBasis, now: newBasis }, null, 2)}</pre>}
-        <h3>Решения</h3><pre>{JSON.stringify(displayed.decisions, null, 2)}</pre>
+        <h3>Решения</h3><table aria-label="История решений"><thead><tr><th>Решение</th><th>Автор / причина</th><th>Основание тогда</th></tr></thead><tbody>{displayed.decisions.map(decision => <tr key={decision.decision_id}><td>{decision.action}<br />{decision.decision_id}</td><td>{decision.actor_id}<br />{decision.reason}</td><td><button onClick={() => api.basis(decision.basis_id, token).then(value => { setOldBasis(value); setOldBasisId(value.basis_id); }).catch(error)}>{decision.basis_id}</button></td></tr>)}</tbody></table>
+        {oldBasis && <details><summary>Сохранённое основание решения {oldBasis.basis_id}</summary><pre>{JSON.stringify(oldBasis, null, 2)}</pre></details>}
+        <details><summary>Полные квитанции решений</summary><pre>{JSON.stringify(displayed.decisions, null, 2)}</pre></details>
       </section>
     </>}
+    <section><h2>Доставка результата в ERP</h2><p>ACK подтверждает сохранение результата получателем, а не физическую отгрузку.</p>
+      <label>Токен интеграции (только память вкладки)<input type="password" value={deliveryToken} onChange={e => { setDeliveryToken(e.target.value); setDeliveries(null); }} /></label>
+      <button disabled={!deliveryToken} onClick={() => api.deliveries(deliveryToken).then(setDeliveries).catch(error)}>Обновить доставки и ACK</button>
+      {deliveries && <><table aria-label="Доставки ERP"><thead><tr><th>Message / версия</th><th>Статус</th><th>Попытки / ошибка</th></tr></thead><tbody>{deliveries.map(entry => <tr key={entry.message_id}><td>{entry.message_id} / {entry.result_version}</td><td>{entry.status}</td><td>{entry.attempts} / {entry.last_error ?? "нет"}</td></tr>)}</tbody></table><details><summary>Сохранённые тела, digest и квитанции ACK</summary><pre>{JSON.stringify(deliveries, null, 2)}</pre></details></>}
+    </section>
     <footer>Это клиент реального API, не симулятор ОТК. Фото не объявляются доступными. Полнота, права и переходы проверяются сервером.</footer>
   </main>;
 }
