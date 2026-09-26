@@ -27,6 +27,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description SQL page of latest revision per external system/order, ordered by that pair. Cursor is opaque; restart reads started before P8. */
         get: operations["listWorkOrders"];
         put?: never;
         post?: never;
@@ -143,6 +144,7 @@ export interface paths {
             };
             cookie?: never;
         };
+        /** @description SQL page ordered by occurred_at, source_id, event_id, record_id. Cursor pins item and history revision; changed history returns 409, invalid/foreign cursor 422. Restart old pre-P8 cursors. */
         get: operations["getTimeline"];
         put?: never;
         post?: never;
@@ -1102,6 +1104,7 @@ export interface components {
     parameters: {
         ItemId: components["schemas"]["Id"];
         CardId: components["schemas"]["Id"];
+        /** @description Opaque endpoint-specific continuation token; pass next_cursor unchanged. Pages other than timeline are live MVCC snapshots, not a frozen multi-page export. */
         Cursor: string;
         Limit: number;
     };
@@ -1134,6 +1137,7 @@ export interface operations {
     listWorkOrders: {
         parameters: {
             query?: {
+                /** @description Opaque endpoint-specific continuation token; pass next_cursor unchanged. Pages other than timeline are live MVCC snapshots, not a frozen multi-page export. */
                 cursor?: components["parameters"]["Cursor"];
                 limit?: components["parameters"]["Limit"];
             };
@@ -1180,6 +1184,7 @@ export interface operations {
     listNonconformities: {
         parameters: {
             query?: {
+                /** @description Opaque endpoint-specific continuation token; pass next_cursor unchanged. Pages other than timeline are live MVCC snapshots, not a frozen multi-page export. */
                 cursor?: components["parameters"]["Cursor"];
                 limit?: components["parameters"]["Limit"];
             };
@@ -1263,6 +1268,7 @@ export interface operations {
     listItems: {
         parameters: {
             query?: {
+                /** @description Opaque endpoint-specific continuation token; pass next_cursor unchanged. Pages other than timeline are live MVCC snapshots, not a frozen multi-page export. */
                 cursor?: components["parameters"]["Cursor"];
                 limit?: components["parameters"]["Limit"];
             };
@@ -1309,6 +1315,7 @@ export interface operations {
     getTimeline: {
         parameters: {
             query?: {
+                /** @description Opaque endpoint-specific continuation token; pass next_cursor unchanged. Pages other than timeline are live MVCC snapshots, not a frozen multi-page export. */
                 cursor?: components["parameters"]["Cursor"];
                 limit?: components["parameters"]["Limit"];
             };
@@ -1657,6 +1664,7 @@ export interface operations {
     getDeliveries: {
         parameters: {
             query?: {
+                /** @description Opaque endpoint-specific continuation token; pass next_cursor unchanged. Pages other than timeline are live MVCC snapshots, not a frozen multi-page export. */
                 cursor?: components["parameters"]["Cursor"];
                 limit?: components["parameters"]["Limit"];
             };

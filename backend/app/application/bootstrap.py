@@ -7,6 +7,7 @@ from pathlib import Path
 from types import MappingProxyType
 
 from sqlalchemy import create_engine
+from sqlalchemy.engine import make_url
 
 from app.adapters.production import PostgresProductionJournal
 from app.adapters.protection import AesGcmProtector
@@ -31,6 +32,10 @@ class ProductionSettings:
 
     @classmethod
     def from_environment(cls, environment):
+        if environment.get("QC_REQUIRE_TLS") == "1":
+            url = make_url(_required(environment, "DATABASE_URL"))
+            if url.query.get("sslmode") != "verify-full" or not url.query.get("sslrootcert"):
+                raise ValueError("This deployment requires PostgreSQL verify-full and a CA file.")
         if environment.get("QC_KEYRING_FILE"):
             return cls(
                 _required(environment, "DATABASE_URL"),

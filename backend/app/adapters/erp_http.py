@@ -6,17 +6,21 @@ import httpx
 import rfc8785
 
 from app.adapters.json_events import _invalid_constant, _object
+from app.adapters.tls import require_https, trust
 from app.application.outbox import DeliveryFailure
 from app.domain.errors import InvalidEvent
 
 
 class HttpErpReceiver:
-    def __init__(self, url, token, *, client=None):
+    def __init__(self, url, token, *, client=None, verify=True):
+        require_https(url)
         if not url.startswith(("https://", "http://")) or not token.strip():
             raise ValueError("ERP endpoint and bearer credential are required.")
         self.url = url
         self.token = token
-        self.client = client or httpx.Client(timeout=15, follow_redirects=False, trust_env=False)
+        self.client = client or httpx.Client(
+            timeout=15, follow_redirects=False, trust_env=False, verify=trust(verify)
+        )
         self.owns_client = client is None
 
     def __call__(self, payload):

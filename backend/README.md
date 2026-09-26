@@ -1,5 +1,11 @@
 # Backend: защищённый журнал и воспроизводимая история изделия
 
+**P8:** [завершение чтения, замеров и TLS](../docs/architecture/p8-pilot-completion.md).
+Публичные Page-списки ограничиваются SQL LIMIT, Chromium проверяет реальную
+ротацию credentials с restart API. Прогоны 1/2/4 API-процессов измеряют TCP
+приём/GET/ACK, JSON/physical storage и advisory contention. Межузловой
+[TLS-профиль](../deploy/multihost/README.md) проверен отдельными Compose-проектами.
+
 Текущий `app.main:app` обслуживает общий `/api/v2` по `contracts/openapi.yaml`
 **0.5.0** поверх ядра P7. В контракте есть recovery-команды, `sending`,
 хронологическая пагинация timeline, аналитические периоды и session endpoint.
@@ -135,7 +141,7 @@ docker compose --env-file .local/compose.env -f deploy/compose.server.yaml --pro
 
 Для уже существующей тестовой БД можно передать `TEST_DATABASE_URL` и выполнить `python -m pytest -m integration`. Имя БД обязано оканчиваться на `_test`. Тестовая учётная запись должна уметь создавать схемы и роли: fixture создаёт изолированную схему и NOLOGIN-роль, затем удаляет их. Без переменной такие тесты помечаются как skipped, поэтому для полной проверки использовать Docker-скрипт.
 
-**Текущий результат на Windows / Python 3.11.9 / PostgreSQL 17.9:** 170 тестов без БД и 74 на PostgreSQL, всего 244 backend. Контракт и ERP находятся в этом репозитории; `QC_ROLE2_ROOT` не нужен. Дополнительно 27 contract/ERP и 14 frontend tests, codegen/shape/build прошли. Ruff, форматирование и `pip check` проходят. Это не промышленная валидация или нагрузочное испытание.
+**Текущий результат на Windows / Python 3.11.9 / PostgreSQL 17.9:** 171 тест без БД и 77 на PostgreSQL, всего 248 backend. Дополнительно 27 contract/ERP и 14 frontend tests; codegen/shape/build, Ruff и 19 Chromium-сценариев прошли. Синтетические замеры P8 — baseline, не промышленный нагрузочный допуск.
 
 Предыдущий срез журнала содержал 50 тестов (37 + 13); все они включены в текущий прогон. Интеграционный запуск применяет шесть миграций в изолированной PostgreSQL и проверяет соответствие схемы модели хранения; созданные им контейнер, сеть и том удаляются после тестов.
 

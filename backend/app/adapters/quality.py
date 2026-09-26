@@ -343,12 +343,16 @@ class PostgresQualityWorkflow:
             msg["created_at"] = msg["created_at"].isoformat()
         return _decode(value)
 
-    def read(self, item_id, operation, *, basis_id=None, all_outbox=False):
+    def read(self, item_id, operation, *, basis_id=None, all_outbox=False, connection=None):
         """Consistent MVCC read; never acquires a writer/advisory lock or prepares a B."""
-        with self.engine.connect().execution_options(
-            isolation_level="REPEATABLE READ"
-        ) as connection:
-            with connection.begin():
+        owns_connection = connection is None
+        context = (
+            self.engine.connect().execution_options(isolation_level="REPEATABLE READ")
+            if owns_connection
+            else nullcontext(connection)
+        )
+        with context as connection:
+            with connection.begin() if owns_connection else nullcontext():
                 row = (
                     connection.execute(
                         self._verified_query().where(quality_items.c.item_id == item_id)

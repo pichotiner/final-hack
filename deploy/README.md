@@ -1,4 +1,10 @@
-# Пилот P7: запуск и восстановление
+# Пилот P7/P8: запуск и восстановление
+
+**P8:** для TLS на внутренних переходах и отдельных физических узлов см.
+[multihost/README.md](multihost/README.md). Локально:
+`python deploy/pilot.py up --directory .local/tls-pilot --port 8445 --seed --distributed-tls`.
+CA/имена проверяются для API, ERP и PostgreSQL; отдельный тест пройдёт четырьмя
+Compose-проектами без общей Docker-сети.
 
 Профиль `compose.pilot.yaml` запускает PostgreSQL, миграции, API, однократный
 импорт ERP, worker, SQLite ERP-эмулятор и HTTPS frontend. Требуются Docker Compose

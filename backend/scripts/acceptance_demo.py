@@ -39,6 +39,7 @@ VARIANTS = (
     "a12",
     "a14",
     "retry-ui",
+    "retry-real",
 )
 
 
@@ -83,12 +84,23 @@ def main():
     parser.add_argument("--serve", action="store_true", help="Keep stand alive after acceptance.")
     parser.add_argument("--headed", action="store_true")
     parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Run HTTP/storage measurements instead of Chromium.",
+    )
+    parser.add_argument("--api-workers", type=int, choices=(1, 2, 4), default=1)
+    parser.add_argument(
         "--publish", action="store_true", help="Publish passing redacted evidence to docs/demo."
     )
     parser.add_argument(
         "--slow-ms", type=int, default=0, help="Pause at video chapters, not test waits."
     )
     args = parser.parse_args()
+    if args.api_workers != 1 and not args.benchmark:
+        parser.error(
+            "Multiple API workers are supported by --benchmark; "
+            "browser rotation uses one API process."
+        )
     directory = (args.output or ROOT / ".local" / f"p6-{uuid4().hex[:10]}").resolve()
     # Never put credentials in a tracked directory, or overwrite an earlier run.
     if not directory.is_relative_to(ROOT / ".local"):
@@ -102,6 +114,7 @@ def main():
     env.update(POSTGRES_PASSWORD=secrets.token_hex(24), POSTGRES_PORT="0")
     compose = ["docker", "compose", "-f", str(ROOT / "deploy/compose.dev.yaml"), "-p", project]
     processes, logs = [], []
+    api_process = None
 
     def run(command, name, cwd=BACKEND):
         with (directory / f"{name}.log").open("w", encoding="utf-8") as log:
@@ -167,6 +180,7 @@ def main():
             QC_HEADED=str(int(args.headed)),
             QC_SLOW_MS=str(args.slow_ms),
             QC_PUBLISH_DEMO=str(int(args.publish)),
+            QC_API_WORKERS=str(args.api_workers),
         )
         erp_args = [
             sys.executable,
@@ -183,7 +197,7 @@ def main():
         erp = start(erp_args, "erp", ROOT)
         env["QC_ERP_PID"] = str(erp.pid)
         env["QC_ERP_ARGS"] = json.dumps(erp_args)
-        start(
+        api_process = start(
             [
                 sys.executable,
                 "-m",
@@ -193,9 +207,13 @@ def main():
                 "127.0.0.1",
                 "--port",
                 str(api_port),
+                "--workers",
+                str(args.api_workers),
             ],
             "api",
         )
+        env["QC_API_PID"] = str(api_process.pid)
+        env["QC_API_PORT"] = str(api_port)
         start(
             [
                 "node",
@@ -250,12 +268,33 @@ def main():
             },
         )
         print(f"Stand ready: {ui_url}; evidence: {evidence}", flush=True)
-        run(["node", "scripts/acceptance.mjs"], "acceptance", ROOT / "frontend")
-        print(f"Acceptance finished: {evidence / 'results.json'}", flush=True)
+        if args.benchmark:
+            run([sys.executable, "scripts/measure_pilot.py"], "benchmark")
+            print(f"Benchmark finished: {evidence / 'performance.json'}", flush=True)
+        else:
+            run(["node", "scripts/acceptance.mjs"], "acceptance", ROOT / "frontend")
+            print(f"Acceptance finished: {evidence / 'results.json'}", flush=True)
         if args.serve:
+            if api_process.poll() is not None:
+                api_process = start(
+                    [
+                        sys.executable,
+                        "-m",
+                        "uvicorn",
+                        "app.main:app",
+                        "--host",
+                        "127.0.0.1",
+                        "--port",
+                        str(api_port),
+                        "--workers",
+                        str(args.api_workers),
+                    ],
+                    "api-interactive",
+                )
             start([sys.executable, "-m", "app.worker"], "worker-interactive")
             print(
-                f"Stand kept alive. Tokens: {creds / 'demo-tokens.json'}. Ctrl+C to stop.",
+                f"Stand kept alive. Credentials: {creds}; "
+                "controller was rotated into credential-*.token. Ctrl+C to stop.",
                 flush=True,
             )
             while True:
@@ -266,6 +305,14 @@ def main():
     finally:
         for process in reversed(processes):
             if process.poll() is None:
+                if os.name == "nt" and args.api_workers > 1 and process is api_process:
+                    # Uvicorn's spawn children outlive TerminateProcess on Windows.
+                    subprocess.run(
+                        ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        check=False,
+                    )
                 process.terminate()
                 try:
                     process.wait(timeout=10)

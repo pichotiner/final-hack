@@ -1,0 +1,20 @@
+name: efqa-database
+services:
+  postgres:
+    image: postgres:17.9-bookworm@sha256:47f917f7409eacd22fc5dfb1dee634e1b55cf0c01d1a7eb701be2227a03e0641
+    env_file: ${QC_NODE_DIR:?Set absolute node bundle path}/runtime.env
+    entrypoint: [/bin/sh, /opt/pg-tls.sh]
+    command: [postgres, -c, ssl=on, -c, ssl_cert_file=/var/lib/postgresql/tls/server.crt, -c, ssl_key_file=/var/lib/postgresql/tls/server.key, -c, hba_file=/opt/pg-hba-tls.conf]
+    ports: ["${QC_BIND_ADDRESS:-127.0.0.1}:${QC_DB_PORT:-5432}:5432"]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ${QC_NODE_DIR}/tls:/run/pg-tls:ro
+      - ../pg-tls.sh:/opt/pg-tls.sh:ro
+      - ../pg-hba-tls.conf:/opt/pg-hba-tls.conf:ro
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U qc_admin -d final_hack"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+volumes:
+  postgres_data:

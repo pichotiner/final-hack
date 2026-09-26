@@ -114,8 +114,9 @@ def main():
     try:
         if args.redeliver:
             receiver = HttpErpReceiver(
-                "http://erp:8090/external/v2/quality-results",
+                os.environ.get("QC_ERP_RESULTS_URL", "http://erp:8090/external/v2/quality-results"),
                 Path("/run/credentials/erp.token").read_text().strip(),
+                verify=os.environ.get("QC_ERP_CA_FILE", True),
             )
         print(json.dumps(_encode(verify(runtime, receiver=receiver))))
     finally:

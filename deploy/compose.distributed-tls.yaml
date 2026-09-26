@@ -1,0 +1,74 @@
+# Local emulation of separate hosts. Each backend has its own network;
+# the transit network carries TLS only. Real hosts: compose.multihost.yaml.
+x-db-client: &db-client
+  DATABASE_URL: postgresql+psycopg://qc_app:${QC_APP_PASSWORD}@postgres:5432/final_hack?sslmode=verify-full&sslrootcert=/run/credentials/tls/ca.crt
+  QC_ERP_RESULTS_URL: https://erp-tls:8443/external/v2/quality-results
+  QC_ERP_CA_FILE: /run/credentials/tls/ca.crt
+  QC_REQUIRE_TLS: "1"
+
+services:
+  postgres:
+    entrypoint: [/bin/sh, /opt/pg-tls.sh]
+    command: [postgres, -c, ssl=on, -c, ssl_cert_file=/var/lib/postgresql/tls/server.crt, -c, ssl_key_file=/var/lib/postgresql/tls/server.key, -c, hba_file=/opt/pg-hba-tls.conf]
+    volumes:
+      - ${QC_PILOT_DIR}/credentials/tls/postgres:/run/pg-tls:ro
+      - ./pg-tls.sh:/opt/pg-tls.sh:ro
+      - ./pg-hba-tls.conf:/opt/pg-hba-tls.conf:ro
+    networks: !override [transit]
+  migrate:
+    environment:
+      DATABASE_URL: postgresql+psycopg://qc_admin:${POSTGRES_PASSWORD}@postgres:5432/final_hack?sslmode=verify-full&sslrootcert=/run/credentials/tls/ca.crt
+    networks: !override [transit]
+  api:
+    environment: *db-client
+    networks: !override [core_local, transit]
+  erp:
+    networks: !override [erp_local]
+  api-tls:
+    build: {context: .., dockerfile: deploy/Dockerfile.tls-proxy}
+    volumes:
+      - ${QC_PILOT_DIR}/credentials/tls/api:/run/tls:ro
+      - ./nginx.tls-proxy.conf:/etc/nginx/conf.d/default.conf:ro
+    networks: [core_local, transit]
+    depends_on:
+      api: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, --cacert, /run/tls/ca.crt, https://localhost:8443/health/ready]
+      interval: 2s
+      timeout: 3s
+      retries: 40
+  erp-tls:
+    build: {context: .., dockerfile: deploy/Dockerfile.tls-proxy}
+    volumes:
+      - ${QC_PILOT_DIR}/credentials/tls/erp:/run/tls:ro
+      - ./nginx.tls-erp.conf:/etc/nginx/conf.d/default.conf:ro
+    networks: [erp_local, transit]
+    depends_on:
+      erp: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, --cacert, /run/tls/ca.crt, https://localhost:8443/health]
+      interval: 2s
+      timeout: 3s
+      retries: 40
+  web:
+    volumes:
+      - ./nginx.distributed.conf:/etc/nginx/conf.d/default.conf:ro
+    networks: !override [transit, ingress]
+    depends_on:
+      api-tls: {condition: service_healthy}
+  importer:
+    command: [python, -m, app.import_erp, --url, "https://erp-tls:8443/external/v2/work-orders", --contract, /srv/contracts/external-openapi.yaml, --profile, examples/erp-import-profile.json, --erp-token-file, /run/credentials/erp.token, --integration-token-file, /run/credentials/import.token]
+    environment: *db-client
+    networks: !override [transit]
+    depends_on:
+      erp-tls: {condition: service_healthy}
+  worker:
+    environment: *db-client
+    networks: !override [transit]
+    depends_on:
+      erp-tls: {condition: service_healthy}
+
+networks:
+  transit: {internal: true}
+  core_local: {internal: true}
+  erp_local: {internal: true}

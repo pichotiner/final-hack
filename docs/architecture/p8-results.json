@@ -1,0 +1,20 @@
+{
+  "synthetic": true,
+  "base_commit": "23374e433252b5338e1f124106fde6907624680c",
+  "working_tree": "P8; see p8-pilot-completion.md",
+  "tests": {"backend_unit": 171, "postgres": 77, "contract_erp": 27, "frontend": 14},
+  "browser": {
+    "passed": 19,
+    "failures": [],
+    "source": ".local/p6-971067928e/evidence/results.json",
+    "credential_rotation": {"attempts": 3, "old_token_status": 401, "retry_status": 200, "same_bytes": true, "decisions": 1, "api_restarted": true}
+  },
+  "performance_final_phase": [
+    {"api_processes": 1, "source": ".local/p6-6e45315721/evidence/performance.json", "ingest_mean_ms": 911.760, "ingest_p95_ms": 1997.547, "get_mean_ms": 242.140, "get_p95_ms": 423.293, "ack_mean_ms": 40.639, "ack_p95_ms": 65.001, "writes_per_second": 3.880, "lock_samples": 1040, "samples_with_waiters": 682},
+    {"api_processes": 2, "source": ".local/p6-01a3debd3b/evidence/performance.json", "ingest_mean_ms": 890.046, "ingest_p95_ms": 2180.134, "get_mean_ms": 260.426, "get_p95_ms": 446.765, "ack_mean_ms": 36.411, "ack_p95_ms": 47.370, "writes_per_second": 3.918, "lock_samples": 1008, "samples_with_waiters": 585},
+    {"api_processes": 4, "source": ".local/p6-253ae86a73/evidence/performance.json", "ingest_mean_ms": 849.957, "ingest_p95_ms": 1386.248, "get_mean_ms": 188.881, "get_p95_ms": 263.047, "ack_mean_ms": 46.132, "ack_p95_ms": 60.967, "writes_per_second": 4.305, "lock_samples": 947, "samples_with_waiters": 555}
+  ],
+  "tls": {"trust_probes_passed": 8, "separate_node_projects": 4, "shared_docker_network": false, "erp_acknowledged": 14},
+  "tls_restore": {"raw": 12, "bases": 23, "decisions": 1, "outbox": 16, "versions": 19, "redelivered": 16, "key_versions": [1, 2], "fingerprints_equal": true},
+  "limits": ["one synthetic hot item in performance runs", "no physical multi-host network used", "not an SLA", "see report for JSONB scanning and aggregate read limits"]
+}

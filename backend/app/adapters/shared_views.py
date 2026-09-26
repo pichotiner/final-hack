@@ -145,7 +145,7 @@ class SharedViews:
         }
         return self._basis(bases[basis_id], connection, decisions)
 
-    def item(self, item_id):
+    def item(self, item_id, *, connection=None, target_ids=None):
         def read(workflow, connection):
             item = workflow._item(item_id)
 
@@ -173,6 +173,8 @@ class SharedViews:
             ]
             cards = []
             for nc in item.nonconformities.values():
+                if target_ids is not None and nc.nonconformity_id not in target_ids:
+                    continue
                 card_basis = basis_for(nc.nonconformity_id)
                 cards.append(
                     {
@@ -222,7 +224,7 @@ class SharedViews:
                 "cycles": item.cycles,
             }
 
-        return self.quality.read(item_id, read)
+        return self.quality.read(item_id, read, connection=connection)
 
     def scope_review(self):
         with self.quality.engine.connect() as connection:

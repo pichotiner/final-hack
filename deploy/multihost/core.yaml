@@ -1,0 +1,51 @@
+name: efqa-core
+x-runtime: &runtime
+  build: ../../backend
+  image: efqa-pilot-core:local
+  user: "${QC_UID:-10001}:${QC_GID:-10001}"
+  env_file: ${QC_NODE_DIR:?Set absolute node bundle path}/runtime.env
+  volumes:
+    - ${QC_NODE_DIR}/credentials:/run/credentials:ro
+    - ../../contracts:/srv/contracts:ro
+    - ../../backend/examples:/srv/backend/examples:ro
+  networks: [local]
+services:
+  migrate:
+    <<: *runtime
+    env_file: ${QC_NODE_DIR}/migrate.env
+    command: [python, -m, app.manage, migrate]
+  api:
+    <<: *runtime
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+  api-tls:
+    build: {context: ../.., dockerfile: deploy/Dockerfile.tls-proxy}
+    volumes:
+      - ${QC_NODE_DIR}/tls:/run/tls:ro
+      - ../nginx.tls-proxy.conf:/etc/nginx/conf.d/default.conf:ro
+    ports: ["${QC_BIND_ADDRESS:-127.0.0.1}:${QC_API_PORT:-8443}:8443"]
+    networks: [local]
+    depends_on:
+      api: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, --cacert, /run/tls/ca.crt, https://localhost:8443/health/ready]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+  importer:
+    <<: *runtime
+    command: [/bin/sh, -c, 'exec python -m app.import_erp --url "$$QC_ERP_ORDERS_URL" --contract /srv/contracts/external-openapi.yaml --profile examples/erp-import-profile.json --erp-token-file /run/credentials/erp.token --integration-token-file /run/credentials/import.token']
+    depends_on:
+      api: {condition: service_healthy}
+  worker:
+    <<: *runtime
+    command: [python, -m, app.worker]
+    depends_on:
+      importer: {condition: service_completed_successfully}
+networks:
+  local: {}

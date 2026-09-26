@@ -19,6 +19,7 @@ paths:
   /api/v2/work-orders:
     get:
       operationId: listWorkOrders
+      description: 'SQL page of latest revision per external system/order, ordered by that pair. Cursor is opaque; restart reads started before P8.'
       parameters: [{$ref: '#/components/parameters/Cursor'}, {$ref: '#/components/parameters/Limit'}]
       responses:
         '200': {description: Imported pinned work orders, content: {application/json: {schema: {$ref: '#/components/schemas/WorkOrderPage'}}}}
@@ -70,6 +71,7 @@ paths:
     parameters: [{$ref: '#/components/parameters/ItemId'}]
     get:
       operationId: getTimeline
+      description: 'SQL page ordered by occurred_at, source_id, event_id, record_id. Cursor pins item and history revision; changed history returns 409, invalid/foreign cursor 422. Restart old pre-P8 cursors.'
       parameters: [{$ref: '#/components/parameters/Cursor'}, {$ref: '#/components/parameters/Limit'}]
       responses:
         '200': {description: History with both times and unresolved links, content: {application/json: {schema: {$ref: '#/components/schemas/TimelinePage'}}}}
@@ -177,7 +179,7 @@ components:
   parameters:
     ItemId: {name: item_id, in: path, required: true, schema: {$ref: '#/components/schemas/Id'}}
     CardId: {name: id, in: path, required: true, schema: {$ref: '#/components/schemas/Id'}}
-    Cursor: {name: cursor, in: query, schema: {type: string}}
+    Cursor: {name: cursor, in: query, description: 'Opaque endpoint-specific continuation token; pass next_cursor unchanged. Pages other than timeline are live MVCC snapshots, not a frozen multi-page export.', schema: {type: string}}
     Limit: {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
   responses:
     Error: {description: 'Structured error for this attempt. A denied retry does not determine the outcome of an earlier timed-out command.', content: {application/json: {schema: {$ref: '#/components/schemas/ErrorResponse'}}}}

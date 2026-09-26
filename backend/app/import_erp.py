@@ -28,7 +28,10 @@ def main():
         runtime = build_runtime(ProductionSettings.from_environment(os.environ))
         runtime.service._require(token, {"integration"})
         reader = HttpWorkOrders(
-            args.url, args.erp_token_file.read_text(encoding="utf-8").strip(), contract
+            args.url,
+            args.erp_token_file.read_text(encoding="utf-8").strip(),
+            contract,
+            verify=os.environ.get("QC_ERP_CA_FILE", True),
         )
         counts = {"accepted": 0, "duplicate": 0}
         for order in reader.orders():

@@ -5,6 +5,8 @@ import os
 
 import pytest
 
+from app.adapters.erp_http import HttpErpReceiver
+from app.adapters.erp_orders import HttpWorkOrders
 from app.application.bootstrap import (
     ProductionSettings,
     _read_identities,
@@ -56,3 +58,23 @@ def test_secret_and_identity_files_are_validated_without_defaults(tmp_path):
     registry.write_text("[]", encoding="utf-8")
     with pytest.raises(ValueError, match="non-empty"):
         _read_identities(registry)
+
+
+def test_multihost_fails_closed_on_plaintext_endpoints_and_database(monkeypatch):
+    monkeypatch.setenv("QC_REQUIRE_TLS", "1")
+    for constructor, args in (
+        (HttpErpReceiver, ("http://erp:8090/results", "token")),
+        (HttpWorkOrders, ("http://erp:8090/orders", "token", None)),
+    ):
+        with pytest.raises(ValueError, match="HTTPS"):
+            constructor(*args)
+    environment = {
+        "DATABASE_URL": "postgresql+psycopg://user:password@postgres/db",
+        "QC_REQUIRE_TLS": "1",
+        "QC_KEYRING_FILE": "/secrets/keyring.json",
+        "QC_IDENTITIES_FILE": "/secrets/identities.json",
+    }
+    with pytest.raises(ValueError, match="verify-full"):
+        ProductionSettings.from_environment(environment)
+    environment["DATABASE_URL"] += "?sslmode=verify-full&sslrootcert=/secrets/ca.crt"
+    assert ProductionSettings.from_environment(environment).keyring_file is not None

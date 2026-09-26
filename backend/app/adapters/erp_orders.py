@@ -10,6 +10,7 @@ import yaml
 from jsonschema import Draft202012Validator, FormatChecker
 
 from app.adapters.json_events import _invalid_constant, _object
+from app.adapters.tls import require_https, trust
 from app.domain.control import decode_context
 from app.domain.errors import InvalidEvent
 
@@ -167,14 +168,17 @@ class WorkOrderMapper:
 
 
 class HttpWorkOrders:
-    def __init__(self, url, token, contract, *, client=None):
+    def __init__(self, url, token, contract, *, client=None, verify=True):
+        require_https(url)
         parsed = httpx.URL(url)
         if parsed.scheme not in ("http", "https") or not parsed.host or parsed.userinfo:
             raise ValueError("An HTTP ERP endpoint without embedded credentials is required.")
         if parsed.query or parsed.fragment or not token.strip():
             raise ValueError("An ERP endpoint and bearer credential are required.")
         self.url, self.token, self.contract = url, token, contract
-        self.client = client or httpx.Client(timeout=15, follow_redirects=False, trust_env=False)
+        self.client = client or httpx.Client(
+            timeout=15, follow_redirects=False, trust_env=False, verify=trust(verify)
+        )
         self.owns_client = client is None
 
     def orders(self):

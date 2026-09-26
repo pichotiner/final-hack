@@ -1,5 +1,6 @@
 """Isolated populated TLS/key-rotation/backup/restore smoke test (Docker required)."""
 
+import argparse
 import copy
 import json
 import secrets
@@ -27,9 +28,12 @@ def ready(pilot):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--distributed-tls", action="store_true")
+    args = parser.parse_args()
     directory = ROOT / ".local" / ("p7-operations-" + uuid4().hex[:10])
     directory.mkdir(mode=0o700)
-    source = Pilot(directory / "source", free_port())
+    source = Pilot(directory / "source", free_port(), distributed_tls=args.distributed_tls)
     restored = Pilot(directory / "restored", free_port())
     try:
         source.initialize("localhost")

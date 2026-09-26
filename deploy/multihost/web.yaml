@@ -1,0 +1,13 @@
+name: efqa-web
+services:
+  web:
+    build: {context: ../.., dockerfile: deploy/Dockerfile.frontend}
+    volumes:
+      - ${QC_NODE_DIR:?Set absolute node bundle path}/tls:/run/tls:ro
+      - ${QC_NODE_DIR}/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports: ["${QC_BIND_ADDRESS:-127.0.0.1}:${QC_WEB_PORT:-8443}:8443"]
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, --cacert, /run/tls/ca.crt, https://localhost:8443/health/ready]
+      interval: 2s
+      timeout: 5s
+      retries: 60

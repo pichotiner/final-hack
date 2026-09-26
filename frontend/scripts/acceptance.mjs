@@ -1,9 +1,9 @@
 // Real Chromium + public HTTP acceptance on the isolated P6 stand.
 import { chromium } from "@playwright/test";
-import { readFile, writeFile, copyFile } from "node:fs/promises";
+import { readFile, writeFile, copyFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 const root = new URL("../../", import.meta.url);
 const dir = process.env.QC_DEMO_DIRECTORY;
@@ -19,6 +19,7 @@ const expected = JSON.parse(await readFile(new URL("docs/acceptance/role2-m0-exp
 const outcomes = [];
 const trace = [];
 const failures = [];
+let restartedApi;
 const save = async (name, value) => writeFile(join(evidence, name), JSON.stringify(value, null, 2) + "\n");
 const assert = (condition, message) => { if (!condition) throw Error(message); };
 const canonical = value => Array.isArray(value) ? value.map(canonical) : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, part]) => [key, canonical(part)])) : value;
@@ -515,10 +516,79 @@ try {
     eq(current.current.body.message_id, v2.message_id, "current V2");
     return { first, older, duplicate, current_message_id: current.current.body.message_id };
   });
+  await caseRun("P8 / real credential rotation after committed response loss", async () => {
+    const item = "retry-real-assembly-001";
+    await seed(item);
+    await openItem(page, item);
+    const attempts = [];
+    const path = `/api/v2/items/${item}/dispositions`;
+    const route = async intercepted => {
+      attempts.push(intercepted.request().postData());
+      if (attempts.length === 1) {
+        const committed = await intercepted.fetch();
+        assert(committed.status() === 201, "command committed before losing response");
+        await intercepted.abort("failed");
+      } else await intercepted.continue();
+    };
+    await page.route(`**${path}`, route);
+    try {
+      await page.getByRole("button", { name: "Начать / явно обновить рассмотрение" }).click();
+      await page.getByText("B = ", { exact: false }).first().waitFor();
+      await page.getByLabel("Действие").selectOption("released");
+      await page.locator("textarea").first().fill("P8 real credential rotation");
+      await page.getByRole("button", { name: "Отправить отдельную команду" }).click();
+      const retry = page.getByRole("button", { name: "Исход неизвестен: повторить точное тело и ключ" });
+      await retry.waitFor();
+      const before = await state(item);
+      eq(before.decisions.length, 1, "one committed decision before rotation");
+      const credentials = join(dir, "credentials");
+      const existing = new Set(await readdir(credentials));
+      const rotation = spawnSync(process.env.QC_PYTHON, ["-m", "app.manage", "rotate-identity", "--directory", credentials, "--actor", "controller"], { cwd: fileURLToPath(new URL("backend/", root)), env: process.env, encoding: "utf8" });
+      assert(rotation.status === 0, "real identity rotation CLI succeeded");
+      const newFile = (await readdir(credentials)).find(name => !existing.has(name) && name.startsWith("credential-") && name.endsWith(".token"));
+      assert(newFile, "new credential file created");
+      const renewed = (await readFile(join(credentials, newFile), "utf8")).trim();
+      process.kill(Number(process.env.QC_API_PID));
+      restartedApi = spawn(process.env.QC_PYTHON, ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", process.env.QC_API_PORT], { cwd: fileURLToPath(new URL("backend/", root)), env: process.env, stdio: "ignore" });
+      let ready = false;
+      for (let i = 0; i < 100; i++) {
+        try {
+          const response = await fetch(base + "/api/v2/session", { headers: { Authorization: `Bearer ${renewed}` } });
+          if (response.status === 200) { ready = true; break; }
+        } catch { /* restart in progress */ }
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      assert(ready, "restarted API recognizes renewed credential");
+      const denied = page.waitForResponse(r => r.url().endsWith(path) && r.request().method() === "POST");
+      await retry.click();
+      eq((await denied).status(), 401, "old credential denied by real server");
+      await retry.waitFor();
+      assert(await page.getByLabel("Bearer token").isDisabled(), "pending command remains locked");
+      await page.getByLabel("Новый токен той же личности").fill(tokens.master);
+      await page.getByRole("button", { name: "Восстановить доступ, сохранив команду" }).click();
+      await page.getByRole("status").getByText("Нужна та же личность:", { exact: false }).waitFor();
+      await page.getByLabel("Новый токен той же личности").fill(renewed);
+      await page.getByRole("button", { name: "Восстановить доступ, сохранив команду" }).click();
+      await page.getByRole("status").getByText("Доступ восстановлен.", { exact: false }).waitFor();
+      const repeated = page.waitForResponse(r => r.url().endsWith(path) && r.request().method() === "POST");
+      await retry.click();
+      const response = await repeated;
+      eq(response.status(), 200, "exact retry returns original receipt");
+      eq((await response.json()).decision_id, before.decisions[0].decision_id, "same decision ID");
+      await page.getByRole("status").getByText("Результат сервера:", { exact: false }).waitFor();
+      const after = await get(`/api/v2/items/${item}`, renewed);
+      eq(after.decisions.length, 1, "rotation/retry did not add decisions");
+      eq(after.context_revision, before.context_revision, "rotation/retry did not bump revision");
+      assert(attempts.length === 3 && attempts.every(body => body === attempts[0]), "identical bytes and key on all attempts");
+      await chapter(page, "real-credential-rotation");
+      return { attempts: 3, denied_status: 401, retry_status: 200, same_bytes: true, decisions: 1, decision_id: after.decisions[0].decision_id, revision: after.context_revision, api_restarted: true };
+    } finally { await page.unroute(`**${path}`, route); }
+  });
 } finally {
+  if (restartedApi) restartedApi.kill();
   await context.close();
   await save("http-trace.json", trace);
-  await save("results.json", { base: "P5 39c332a + working tree", independent_expectations: "docs/acceptance/role2-m0-expected.json", outcomes, failures });
+  await save("results.json", { base: "See environment.json for commit and working tree", independent_expectations: "docs/acceptance/role2-m0-expected.json", outcomes, failures });
   if (process.env.QC_PUBLISH_DEMO === "1" && failures.length === 0) {
     const publication = new URL("docs/demo/", root);
     const summary = outcomes.map(({ case_id, status, actual }) => ({ case_id, status,

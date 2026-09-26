@@ -74,7 +74,7 @@ export const api = {
   basis: (id: string, token: string) => request<Basis>(`/api/v2/bases/${encodeURIComponent(id)}`, token),
   analytics: (token: string, query = "") => request<Analytics>(`/api/v2/analytics${query ? `?${query}` : ""}`, token),
   timeline: async (id: string, token: string) => ({ items: await allPages<components["schemas"]["TimelineEntry"]>(`/api/v2/items/${encodeURIComponent(id)}/timeline`, token), next_cursor: null }),
-  orders: (token: string) => request<components["schemas"]["WorkOrderPage"]>("/api/v2/work-orders", token),
+  orders: async (token: string) => ({ items: await allPages<components["schemas"]["WorkOrder"]>("/api/v2/work-orders", token), next_cursor: null }),
   line: (id: string, token: string) => request<components["schemas"]["LineStatus"]>(`/api/v2/lines/${encodeURIComponent(id)}/status`, token),
   deliveries: async (token: string) => {
     const items: components["schemas"]["Delivery"][] = [];

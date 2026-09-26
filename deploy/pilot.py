@@ -58,7 +58,9 @@ def certificates(directory, hostname):
         .sign(ca_key, hashes.SHA256())
     )
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    sans = [x509.DNSName("localhost"), x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]
+    sans = [x509.DNSName(name) for name in ("localhost", "api-tls", "erp-tls", "web")] + [
+        x509.IPAddress(ipaddress.ip_address("127.0.0.1"))
+    ]
     if hostname != "localhost":
         try:
             sans.append(x509.IPAddress(ipaddress.ip_address(hostname)))
@@ -92,14 +94,63 @@ def certificates(directory, hostname):
         write(directory / f"{name}.crt", obj.public_bytes(serialization.Encoding.PEM))
 
 
+def node_certificates(directory, hosts=None):
+    """Issue separate leaf keys; only the issuer directory contains the CA private key."""
+    hosts = hosts or {"api": "api-tls", "erp": "erp-tls", "postgres": "postgres"}
+    ca = x509.load_pem_x509_certificate((directory / "ca.crt").read_bytes())
+    ca_key = serialization.load_pem_private_key((directory / "ca.key").read_bytes(), None)
+    now = datetime.now(UTC)
+    for node, hostname in hosts.items():
+        output = directory / node
+        if output.exists():
+            continue
+        output.mkdir(mode=0o700)
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        try:
+            identity = x509.IPAddress(ipaddress.ip_address(hostname))
+        except ValueError:
+            identity = x509.DNSName(hostname)
+        names = [
+            identity,
+            x509.DNSName("localhost"),
+            x509.IPAddress(ipaddress.ip_address("127.0.0.1")),
+        ]
+        cert = (
+            x509.CertificateBuilder()
+            .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, hostname)]))
+            .issuer_name(ca.subject)
+            .public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(now - timedelta(minutes=5))
+            .not_valid_after(now + timedelta(days=90))
+            .add_extension(x509.SubjectAlternativeName(names), critical=False)
+            .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+            .add_extension(
+                x509.ExtendedKeyUsage([x509.oid.ExtendedKeyUsageOID.SERVER_AUTH]), critical=False
+            )
+            .sign(ca_key, hashes.SHA256())
+        )
+        write(
+            output / "server.key",
+            key.private_bytes(
+                serialization.Encoding.PEM,
+                serialization.PrivateFormat.PKCS8,
+                serialization.NoEncryption(),
+            ),
+        )
+        write(output / "server.crt", cert.public_bytes(serialization.Encoding.PEM))
+        write(output / "ca.crt", ca.public_bytes(serialization.Encoding.PEM))
+
+
 class Pilot:
-    def __init__(self, directory, port=8443, project=None):
+    def __init__(self, directory, port=8443, project=None, distributed_tls=False):
         self.directory = directory.resolve()
         if not self.directory.is_relative_to(ROOT / ".local"):
             raise ValueError(
                 "Pilot working directories must be inside the ignored .local directory."
             )
         self.port = port
+        self.distributed_tls = distributed_tls or (self.directory / "distributed-tls").exists()
         self.project = (
             project or "efqa-" + hashlib.sha256(str(self.directory).encode()).hexdigest()[:10]
         )
@@ -111,6 +162,9 @@ class Pilot:
         initialize(self.directory / "credentials")
         certificates(self.directory / "credentials/tls", hostname)
         (self.directory / "erp").mkdir(mode=0o700)
+        if self.distributed_tls:
+            node_certificates(self.directory / "credentials/tls")
+            write(self.directory / "distributed-tls", "P8 TLS profile\n")
 
     def compose(self, *args, **kwargs):
         env = dict(os.environ)
@@ -119,14 +173,17 @@ class Pilot:
                 key, value = line.split("=", 1)
                 env[key] = value
         env.update(QC_PILOT_DIR=self.directory.as_posix(), QC_HTTPS_PORT=str(self.port))
+        files = [str(ROOT / "deploy/compose.pilot.yaml")]
+        if self.distributed_tls:
+            files.append(str(ROOT / "deploy/compose.distributed-tls.yaml"))
+        compose_files = [part for file in files for part in ("-f", file)]
         return subprocess.run(
             [
                 "docker",
                 "compose",
                 "-p",
                 self.project,
-                "-f",
-                str(ROOT / "deploy/compose.pilot.yaml"),
+                *compose_files,
                 *args,
             ],
             cwd=ROOT,
@@ -178,6 +235,8 @@ class Pilot:
         try:
             # Freeze public writers before verifying and dumping; verifier runs in a one-off core.
             self.compose("stop", "web")
+            if self.distributed_tls:
+                self.compose("stop", "api-tls")
             evidence = self.verify()
             self.compose("stop", "api", "erp")
             with (output / "postgres.dump").open("xb") as stream:
@@ -204,6 +263,7 @@ class Pilot:
             )
             manifest = {
                 "format": 1,
+                "distributed_tls": self.distributed_tls,
                 "created_at": datetime.now(UTC).isoformat(),
                 "evidence": evidence,
                 "files": {
@@ -221,6 +281,7 @@ class Pilot:
         if self.directory.exists():
             raise ValueError("Restore requires a new isolated directory/project.")
         manifest = json.loads((backup / "manifest.json").read_text())
+        self.distributed_tls = manifest.get("distributed_tls", False)
         if manifest["format"] != 1 or set(manifest["files"]) != {
             "postgres.dump",
             "erp.sqlite",
@@ -234,6 +295,8 @@ class Pilot:
         key = Scrypt(salt=blob[:16], length=32, n=2**15, r=8, p=1).derive(password.encode())
         plain = AESGCM(key).decrypt(blob[16:28], blob[28:], b"efqa-pilot-backup-v1")
         self.directory.mkdir(mode=0o700, parents=True)
+        if self.distributed_tls:
+            write(self.directory / "distributed-tls", "P8 TLS profile\n")
         with tarfile.open(fileobj=io.BytesIO(plain), mode="r") as archive:
             for member in archive.getmembers():
                 destination = (self.directory / member.name).resolve()
@@ -244,7 +307,9 @@ class Pilot:
             archive.extractall(self.directory, filter="data")
         (self.directory / "erp").mkdir(mode=0o700)
         shutil.copyfile(backup / "erp.sqlite", self.directory / "erp/erp.sqlite")
-        self.compose("build", "api", "erp", "web")
+        self.compose(
+            "build", "api", "erp", "web", *(["api-tls", "erp-tls"] if self.distributed_tls else [])
+        )
         self.compose("up", "-d", "--wait", "postgres")
         with (backup / "postgres.dump").open("rb") as stream:
             self.compose(
@@ -261,7 +326,9 @@ class Pilot:
                 "final_hack",
                 stdin=stream,
             )
-        self.compose("up", "-d", "--wait", "api", "erp")
+        self.compose(
+            "up", "-d", "--wait", "api", "erp", *(["erp-tls"] if self.distributed_tls else [])
+        )
         before = self.verify()
         if before["fingerprints"] != manifest["evidence"]["fingerprints"]:
             raise ValueError("Restored evidence differs from the backup manifest.")
@@ -290,8 +357,9 @@ def main():
     parser.add_argument("--backup", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--actor")
+    parser.add_argument("--distributed-tls", action="store_true")
     args = parser.parse_args()
-    pilot = Pilot(args.directory, args.port)
+    pilot = Pilot(args.directory, args.port, distributed_tls=args.distributed_tls)
     if args.command == "up":
         pilot.initialize(args.hostname)
         pilot.compose("up", "--build", "-d", "--wait", "--wait-timeout", "180")

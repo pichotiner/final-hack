@@ -17,7 +17,11 @@ def main():
     parser.add_argument("--message-id", help="Deliver one specific persisted message when due.")
     args = parser.parse_args()
     token = Path(os.environ["QC_ERP_TOKEN_FILE"]).read_text(encoding="utf-8").strip()
-    receiver = HttpErpReceiver(os.environ["QC_ERP_RESULTS_URL"], token)
+    receiver = HttpErpReceiver(
+        os.environ["QC_ERP_RESULTS_URL"],
+        token,
+        verify=os.environ.get("QC_ERP_CA_FILE", True),
+    )
     runtime = build_runtime(ProductionSettings.from_environment(os.environ))
     worker = OutboxDeliveryWorker(runtime.service.journal, receiver)
     try:

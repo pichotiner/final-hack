@@ -9,10 +9,11 @@ from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
 from app.adapters.json_events import JsonEventCodec
+from app.adapters.read_pages import ReadPages
 from app.adapters.shared_contract import document, validate
 from app.adapters.shared_views import SharedViews
-from app.api.pagination import limit, timeline_page
-from app.api.server import _body, _page, _token
+from app.api.pagination import limit
+from app.api.server import _body, _token
 from app.application.outbox import OutboxDeliveryWorker
 from app.application.source_validation import validate_source_payload
 from app.domain.errors import InvalidEvent, UnknownEntity
@@ -35,6 +36,7 @@ ROLES = {
 def install(app, service):
     spec = document()
     views = SharedViews(service)
+    pages = ReadPages(views)
     app.openapi = lambda: copy.deepcopy(spec)
     app.title, app.version = spec["info"]["title"], spec["info"]["version"]
 
@@ -86,29 +88,19 @@ def install(app, service):
         if operation == "getItem":
             return views.item(ids["item_id"]), 200
         if operation == "listItems":
-            size = limit(request)
-            ids_page = quality.item_ids_page(request.query_params.get("cursor", ""), size)
-            return {
-                "items": [views.item(key) for key in ids_page[:size]],
-                "next_cursor": ids_page[size - 1] if len(ids_page) > size else None,
-            }, 200
+            return pages.items(request.query_params.get("cursor", ""), limit(request)), 200
         if operation == "getNonconformity":
-            item = views.item(quality.find_item_for_nonconformity(ids["id"]))
+            item = views.item(
+                quality.find_item_for_nonconformity(ids["id"]), target_ids={ids["id"]}
+            )
             return next(card for card in item["nonconformities"] if card["id"] == ids["id"]), 200
         if operation == "listNonconformities":
-            cards = [
-                card
-                for state in quality.list_states()
-                for card in views.item(state["item_id"])["nonconformities"]
-            ]
-            return _page(request, cards, "id"), 200
+            return pages.cards(request.query_params.get("cursor", ""), limit(request)), 200
         if operation == "getBasis":
             return views.basis(ids["basis_id"]), 200
         if operation == "getTimeline":
-            quality.state(ids["item_id"])
-            history = service.journal.get_history(ids["item_id"])
-            return timeline_page(
-                request, ids["item_id"], history["timeline"] if history else []
+            return pages.timeline(
+                ids["item_id"], request.query_params.get("cursor", ""), limit(request)
             ), 200
         if operation == "getAnalytics":
             dates = {}
@@ -132,12 +124,12 @@ def install(app, service):
                 "computed_at": datetime.now(UTC).isoformat(),
             }, 200
         if operation == "getDeliveries":
-            return _page(request, quality.list_outbox(), "message_id"), 200
+            return pages.deliveries(request.query_params.get("cursor", ""), limit(request)), 200
         if operation == "retryDelivery":
             OutboxDeliveryWorker(service.journal, None).retry(ids["message_id"])
             return quality.get_outbox(ids["message_id"]), 200
         if operation == "listWorkOrders":
-            return _page(request, views.orders(), "id"), 200
+            return pages.orders(request.query_params.get("cursor", ""), limit(request)), 200
         if operation == "getWorkOrder":
             order = next((part for part in views.orders() if part["id"] == ids["id"]), None)
             if order is None:
