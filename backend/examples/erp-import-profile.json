@@ -1,6 +1,6 @@
 {
   "profile_id": "role2-bracket-demo",
-  "profile_version": "1",
+  "profile_version": "2",
   "external_system": "erp-demo",
   "producer_id": "efqa-demo",
   "expected_order": {
@@ -15,6 +15,7 @@
       "item_id": "assembly-001",
       "component_mapping": {"bracket-001": "bracket-001", "insert-001": "insert-001"},
       "context": {
+        "erp_result_profile": "dp01-0.4",
         "work_order_id": "order-001", "assembly_version": "1",
         "required_operations": ["run-machining-001", "run-assembly-001"],
         "controls": [
@@ -32,6 +33,7 @@
       "item_id": "assembly-002",
       "component_mapping": {"bracket-002": "bracket-002", "insert-002": "insert-002"},
       "context": {
+        "erp_result_profile": "dp01-0.4",
         "work_order_id": "order-001", "assembly_version": "1",
         "required_operations": ["run-machining-002", "run-assembly-002"],
         "controls": [
@@ -49,6 +51,7 @@
       "item_id": "assembly-003",
       "component_mapping": {"bracket-003": "bracket-003", "insert-003": "insert-003"},
       "context": {
+        "erp_result_profile": "dp01-0.4",
         "work_order_id": "order-001", "assembly_version": "1",
         "required_operations": ["run-machining-003", "run-assembly-003"],
         "controls": [

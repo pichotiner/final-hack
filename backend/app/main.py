@@ -2,4 +2,4 @@
 
 from app.api.server import create_app
 
-app = create_app()
+app = create_app(shared=True)

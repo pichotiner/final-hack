@@ -212,7 +212,7 @@ def _openapi():
     return document
 
 
-def create_app(service=None):
+def create_app(service=None, *, shared=False):
     runtime = None
     if service is None:
         runtime = build_runtime(ProductionSettings.from_environment(os.environ))
@@ -250,10 +250,19 @@ def create_app(service=None):
             "key_unavailable": 503,
             "unsupported_crypto_profile": 503,
         }.get(error.code, 422)
-        details = [{"blockers": list(error.blockers)}] if isinstance(error, ReleaseBlocked) else []
+        details = (
+            [{"blockers": list(error.blockers)}]
+            if isinstance(error, ReleaseBlocked) and not shared
+            else []
+        )
+        extra = (
+            {"blockers": list(error.blockers)}
+            if isinstance(error, ReleaseBlocked) and shared
+            else {}
+        )
         return JSONResponse(
             {
-                "error": {"code": error.code, "message": str(error), "details": details},
+                "error": {"code": error.code, "message": str(error), "details": details, **extra},
                 "request_id": str(uuid4()),
             },
             status_code=status,
@@ -303,6 +312,12 @@ def create_app(service=None):
             return JSONResponse(jsonable_encoder(result), status_code=status)
 
         return handle
+
+    if shared:
+        from app.api.shared import install
+
+        install(app, service)
+        return app
 
     for path, methods in contract()["paths"].items():
         for method, operation in methods.items():

@@ -9,6 +9,9 @@ x-core: &core
     QC_EVENT_KEY_ID: demo-key
     QC_EVENT_KEY_VERSION: "1"
     QC_IDENTITIES_FILE: /run/secrets/identities
+    QC_CONTRACT_ROOT: /srv/contracts
+  volumes:
+    - ../contracts:/srv/contracts:ro
   secrets:
     - event_key
     - identities
@@ -54,7 +57,7 @@ services:
     command: ["python", "-m", "app.worker"]
     environment:
       <<: *environment
-      QC_ERP_RESULTS_URL: ${QC_ERP_RESULTS_URL:-http://host.docker.internal:8100/external/v2/quality-results}
+      QC_ERP_RESULTS_URL: ${QC_ERP_RESULTS_URL:-http://host.docker.internal:8090/external/v2/quality-results}
       QC_ERP_TOKEN_FILE: /run/secrets/erp_token
     secrets:
       - event_key

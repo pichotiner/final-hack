@@ -1,0 +1,26 @@
+[
+  {
+    "producer_id": "efqa-demo", "external_system": "erp-demo", "external_order_id": "order-001", "external_item_id": "assembly-001",
+    "message_id": "msg-1", "result_version": 1, "previous_message_id": null,
+    "context_revision": 7, "control_cycle_id": "cycle-1", "disposition": "rework",
+    "disposition_decision": {"decision_id": "disp-1", "basis_id": "b-rework", "action": "rework", "reviewed_revision": 6, "actor_id": "synthetic-controller", "reason": "Synthetic rework assignment"},
+    "release_allowed_now": false, "blockers": ["nonconformity:nc-1:open"], "review_required": false,
+    "confirmed_nonconformities": [{"nonconformity_id": "nc-1", "resolution_status": "open", "decision_id": "d-1", "resolution_id": null, "cause_status": "unresolved", "cause_category": "unknown", "basis_ids": ["b-1"]}]
+  },
+  {
+    "producer_id": "efqa-demo", "external_system": "erp-demo", "external_order_id": "order-001", "external_item_id": "assembly-001",
+    "message_id": "msg-2", "result_version": 2, "previous_message_id": "msg-1",
+    "context_revision": 8, "control_cycle_id": "cycle-1", "disposition": "rework",
+    "disposition_decision": {"decision_id": "disp-1", "basis_id": "b-rework", "action": "rework", "reviewed_revision": 6, "actor_id": "synthetic-controller", "reason": "Synthetic rework assignment"},
+    "release_allowed_now": false, "blockers": ["context_review_required"], "review_required": true,
+    "confirmed_nonconformities": [{"nonconformity_id": "nc-1", "resolution_status": "open", "decision_id": "d-1", "resolution_id": null, "cause_status": "unresolved", "cause_category": "unknown", "basis_ids": ["b-1", "b-2"]}]
+  },
+  {
+    "producer_id": "efqa-demo", "external_system": "erp-demo", "external_order_id": "order-001", "external_item_id": "assembly-001",
+    "message_id": "msg-3", "result_version": 3, "previous_message_id": "msg-2",
+    "context_revision": 15, "control_cycle_id": "cycle-2", "disposition": "released",
+    "disposition_decision": {"decision_id": "disp-2", "basis_id": "b-release", "action": "released", "reviewed_revision": 14, "actor_id": "synthetic-controller", "reason": "Synthetic release after resolution"},
+    "release_allowed_now": true, "blockers": [], "review_required": false,
+    "confirmed_nonconformities": [{"nonconformity_id": "nc-1", "resolution_status": "resolved", "decision_id": "d-2", "resolution_id": "rd-1", "cause_status": "unresolved", "cause_category": "unknown", "basis_ids": ["b-3", "b-4"]}]
+  }
+]

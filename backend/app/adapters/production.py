@@ -94,6 +94,13 @@ class PostgresProductionJournal(PostgresTraceabilityJournal):
 
                 def update(workflow, connection):
                     item = workflow._item(item_id)
+                    if (
+                        item.context
+                        and item.context.erp_result_profile != context.erp_result_profile
+                    ):
+                        raise InvalidTransition(
+                            "An existing stream cannot change ERP result profile."
+                        )
                     if item.context == context:
                         return False
                     if item.cycle_id != item.initial_cycle_id:

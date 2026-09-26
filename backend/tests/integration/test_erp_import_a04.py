@@ -1,7 +1,4 @@
-"""Imported order through live P3 HTTP up to released; external ACK is a separate gate.
-
-This uses the current draft commands. It does not claim shared-contract A04 acceptance.
-"""
+"""Live imported-order acceptance: legacy P3 to released and shared P5 through ERP ACK."""
 
 import hashlib
 import importlib
@@ -14,18 +11,24 @@ import httpx
 import pytest
 import uvicorn
 
+from app.adapters.erp_http import HttpErpReceiver
 from app.adapters.erp_orders import HttpWorkOrders
 from app.api.server import create_app
+from app.application.outbox import OutboxDeliveryWorker
 from app.application.production import Principal
+from app.domain.quality import _digest
 
 pytestmark = pytest.mark.integration
 pytest_plugins = ("tests.integration.test_erp_import",)
 
 
+@pytest.mark.parametrize("shared", [False, True], ids=["draft", "shared-ack"])
 def test_imported_order_confirm_rework_repeat_control_resolve_release(
-    imported, role2_root, trace_document, tmp_path
+    imported, role2_root, trace_document, tmp_path, shared
 ):
     order, mapper, journal, service = imported
+    for mapping in mapper.profile["items"].values():
+        mapping["context"]["erp_result_profile"] = "dp01-0.4" if shared else "draft-p3"
     for token, roles, source_id in [
         ("master-test", {"master"}, None),
         ("vision-emulator-1", {"source"}, "vision-emulator-1"),
@@ -36,12 +39,15 @@ def test_imported_order_confirm_rework_repeat_control_resolve_release(
         )
     module = importlib.import_module("emulator.server")
     receiver = module.Receiver(tmp_path / "a04-erp.sqlite", [order])
-    with module.make_server(receiver, "erp-test") as erp, socket.socket() as listener:
+    with (
+        module.make_server(receiver, "erp-test", allow_faults=True) as erp,
+        socket.socket() as listener,
+    ):
         erp_thread = Thread(target=erp.serve_forever, daemon=True)
         erp_thread.start()
         listener.bind(("127.0.0.1", 0))
         server = uvicorn.Server(
-            uvicorn.Config(create_app(service), log_level="error", lifespan="off")
+            uvicorn.Config(create_app(service, shared=shared), log_level="error", lifespan="off")
         )
         api_thread = Thread(target=server.run, kwargs={"sockets": [listener]}, daemon=True)
         api_thread.start()
@@ -69,6 +75,27 @@ def test_imported_order_confirm_rework_repeat_control_resolve_release(
             ) as client:
 
                 def request(method, path, body=None, token="controller-test", expected=200):
+                    if shared and body and method == "POST":
+                        body = dict(body)
+                        if path.endswith("/decisions"):
+                            body["decision"] = body.pop("action")
+                        elif path.endswith("/dispositions"):
+                            body["disposition"] = body.pop("action")
+                        elif path.endswith("/control-cycles"):
+                            body["planned_operation_run_ids"] = body.pop("operation_run_ids")
+                            body["rework_disposition_id"] = next(
+                                value["decision_id"]
+                                for value in reversed(state()["decisions"])
+                                if value["action"] == "rework"
+                            )
+                        elif path.endswith("/resolutions") and body["action"] == "resolve":
+                            body["rework_operation_run_id"] = body.pop("rework_operation_id")
+                            observation_ids = body.pop("observation_ids")
+                            body["control_record_ids"] = [
+                                part["record_id"]
+                                for part in state()["observations"]
+                                if part["observation_id"] in observation_ids
+                            ]
                     response = client.request(
                         method, path, json=body, headers={"Authorization": f"Bearer {token}"}
                     )
@@ -76,15 +103,40 @@ def test_imported_order_confirm_rework_repeat_control_resolve_release(
                     return response.json()
 
                 def state():
-                    return request("GET", f"/api/v2/items/{item_id}")
+                    value = request("GET", f"/api/v2/items/{item_id}")
+                    if shared:
+                        saved_basis = request("GET", f"/api/v2/bases/{value['basis_id']}")
+                        value.update(
+                            cycle_id=value["control_cycle_id"],
+                            observations=saved_basis["analysis_snapshot"]["observations"],
+                            kpi=saved_basis["analysis_snapshot"]["kpi"],
+                            nonconformities=[
+                                {**card, "nonconformity_id": card["id"]}
+                                for card in value["nonconformities"]
+                            ],
+                        )
+                    return value
 
                 def basis(target=None):
-                    result = request(
-                        "POST",
-                        f"/api/v2/items/{item_id}/bases",
-                        {"target_id": target},
-                        expected=201,
-                    )
+                    if shared:
+                        item = state()
+                        basis_id = (
+                            next(
+                                card["basis_id"]
+                                for card in item["nonconformities"]
+                                if card["id"] == target
+                            )
+                            if target
+                            else item["basis_id"]
+                        )
+                        result = request("GET", f"/api/v2/bases/{basis_id}")
+                    else:
+                        result = request(
+                            "POST",
+                            f"/api/v2/items/{item_id}/bases",
+                            {"target_id": target},
+                            expected=201,
+                        )
                     return {
                         "expected_revision": result["context_revision"],
                         "expected_basis_id": result["basis_id"],
@@ -112,6 +164,8 @@ def test_imported_order_confirm_rework_repeat_control_resolve_release(
                             timestamp,
                             operation_run_id=run,
                             station_id=station,
+                            operator_id="operator-01" if station == "machining" else "operator-02",
+                            equipment_id="machine-01" if station == "machining" else "machine-02",
                             payload={"previous_operation_run_id": previous} if previous else {},
                         )
 
@@ -211,16 +265,50 @@ def test_imported_order_confirm_rework_repeat_control_resolve_release(
                     for part in state()["observations"]
                     if part["cycle_id"] == cycle and part["checkpoint_id"] == final.checkpoint_id
                 )
+                resolution_command = basis(nc) | {
+                    "action": "resolve",
+                    "rework_operation_id": "repair-1",
+                    "previous_operation_run_id": "run-assembly-001",
+                    "observation_ids": [observation["observation_id"]],
+                }
+                if shared:
+                    examined = request(
+                        "GET", f"/api/v2/bases/{resolution_command['expected_basis_id']}"
+                    )
+                    before = journal.quality.state(item_id)
+                    bad_records = [
+                        next(
+                            ref["record_id"]
+                            for ref in examined["inputs"]
+                            if not ref["observation_ids"]
+                        ),
+                        next(
+                            obs["record_id"]
+                            for obs in examined["analysis_snapshot"]["observations"]
+                            if obs["cycle_id"] != cycle
+                        ),
+                        str(uuid4()),
+                    ]
+                    for record_id in bad_records:
+                        wire_command = {
+                            key: value
+                            for key, value in resolution_command.items()
+                            if key not in {"observation_ids", "rework_operation_id"}
+                        }
+                        wire_command.update(
+                            rework_operation_run_id="repair-1", control_record_ids=[record_id]
+                        )
+                        response = client.post(
+                            f"/api/v2/nonconformities/{nc}/resolutions",
+                            json=wire_command,
+                            headers={"Authorization": "Bearer controller-test"},
+                        )
+                        assert response.status_code == 409, response.text
+                        assert journal.quality.state(item_id) == before
                 resolve = request(
                     "POST",
                     f"/api/v2/nonconformities/{nc}/resolutions",
-                    basis(nc)
-                    | {
-                        "action": "resolve",
-                        "rework_operation_id": "repair-1",
-                        "previous_operation_run_id": "run-assembly-001",
-                        "observation_ids": [observation["observation_id"]],
-                    },
+                    resolution_command,
                     expected=201,
                 )
                 released = request(
@@ -233,7 +321,11 @@ def test_imported_order_confirm_rework_repeat_control_resolve_release(
                 assert current["kpi"]["open_confirmed_defects"] == 0
                 assert current["kpi"]["resolved_confirmed_defects"] == 1
                 assert current["kpi"]["rework_operations"] == 1
-                assert {part["decision_id"] for part in current["decisions"]} == {
+                assert {
+                    part["decision_id"]
+                    for part in current["decisions"]
+                    if part["action"] in {"confirm", "resolve"}
+                } == {
                     confirm["decision_id"],
                     resolve["decision_id"],
                 }
@@ -252,6 +344,57 @@ def test_imported_order_confirm_rework_repeat_control_resolve_release(
                     == released["decision_id"]
                 )
                 assert message["status"] == "pending"
+                if shared:
+                    assert (
+                        request(
+                            "POST", f"/api/v2/nonconformities/{nc}/resolutions", resolution_command
+                        )
+                        == resolve
+                    )
+                    assert resolve["control_record_ids"] == [observation["record_id"]]
+                    url = f"http://127.0.0.1:{erp.server_port}/external/v2/quality-results"
+                    # Receiver commits, then deliberately drops the response.
+                    with pytest.raises(httpx.TransportError):
+                        client.post(
+                            url,
+                            json=message["payload"],
+                            headers={
+                                "Authorization": "Bearer erp-test",
+                                "X-Emulator-Fault": "lost-ack",
+                            },
+                        )
+                    sender = HttpErpReceiver(url, "erp-test")
+                    try:
+                        worker = OutboxDeliveryWorker(journal, sender)
+                        worker.deliver_once(message_id=message["message_id"])
+                        for historical in journal.quality.state(item_id)["outbox"]:
+                            worker.deliver_once(message_id=historical["message_id"])
+                    finally:
+                        sender.close()
+                    delivered = journal.quality.get_outbox(message["message_id"])
+                    assert delivered["status"] == "acknowledged"
+                    assert delivered["ack"]["status"] == "duplicate"
+                    assert delivered["content_digest"] == _digest(message["payload"])
+                    saved = client.get(
+                        url + "/" + message["message_id"],
+                        headers={"Authorization": "Bearer erp-test"},
+                    ).json()
+                    assert saved["body"] == message["payload"]
+                    final_state = receiver.state(message["payload"])
+                    assert final_state["current"] == saved
+                    assert final_state["missing_version_ranges"] == []
+                    assert saved["ack"]["content_digest"] == delivered["content_digest"]
+                    card = saved["body"]["confirmed_nonconformities"][0]
+                    assert card["resolution_status"] == "resolved"
+                    assert card["decision_id"] == confirm["decision_id"]
+                    assert card["resolution_id"] == resolve["decision_id"]
+                    assert saved["body"]["disposition_decision"]["basis_id"] == released["basis_id"]
+                    assert (
+                        module.Receiver(tmp_path / "a04-erp.sqlite", [order]).saved(
+                            message["message_id"]
+                        )
+                        == saved
+                    )
         finally:
             reader.close()
             server.should_exit = True

@@ -1,0 +1,15 @@
+:root { font-family: system-ui, sans-serif; color: #172c3a; background: #f1f5f7; }
+body { margin: 0; }
+main { max-width: 1040px; margin: auto; padding: 24px; }
+header, section { background: white; border: 1px solid #d8e2e8; border-radius: 8px; padding: 20px; margin: 16px 0; }
+label { display: block; margin: 12px 0; }
+input, select, textarea { display: block; padding: 9px; width: min(100%, 600px); box-sizing: border-box; margin-top: 6px; }
+button { padding: 10px; margin: 6px; cursor: pointer; }
+button:disabled { cursor: default; opacity: .5; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #edf3f6; padding: 12px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; border-bottom: 1px solid #ddd; padding: 8px; }
+.warning { background: #fff0ce; padding: 14px; }
+.message { border-left: 4px solid #427a9c; padding: 14px; overflow-wrap: anywhere; }
+article { border-bottom: 1px solid #ddd; padding: 10px; }
+footer { font-size: .9em; }

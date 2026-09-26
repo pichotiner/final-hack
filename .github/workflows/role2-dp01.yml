@@ -1,0 +1,31 @@
+name: Role 2 DP-01 contract and receiver
+on: [push, pull_request]
+jobs:
+  contract-and-receiver:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.12.0'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Contract shape, generated DTOs and receiver boundary
+        run: |
+          python -m pip install -r contracts/requirements.lock.txt
+          python -m contracts.generate --check
+          python -m contracts.compatibility contracts/openapi.yaml contracts/compat-baseline.json
+          python -m contracts.compatibility contracts/external-openapi.yaml contracts/external-compat-baseline.json
+          python -m pytest contracts emulator -q
+          python -m emulator.generate
+          git diff --exit-code -- data/v2/source-events.json
+          python -m ruff check contracts/validation.py contracts/generate.py contracts/compatibility.py contracts/test_contract.py contracts/test_compatibility.py emulator
+      - name: Client generation, pinned review and build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run check:generated
+          npm test
+          npm run build

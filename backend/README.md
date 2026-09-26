@@ -1,6 +1,11 @@
 # Backend: защищённый журнал и воспроизводимая история изделия
 
-Завершены инкремент журнала и следующий внутренний срез истории изделия: поступление, ссылки на компоненты, операции, длительности и replay поздних событий. Добавлен тонкий `/api/v2` серверный адаптер роли №1 и transactional-outbox worker. Draft-контракт `backend/app/api/contract.json` ждёт review роли №2 и не объявляется общей OpenAPI поставкой.
+Текущий `app.main:app` обслуживает общий `/api/v2` по `contracts/openapi.yaml`
+**0.4.0** поверх ядра P4. Контракт, ERP-эмулятор и UI перенесены из PR №6 роли №2
+и исправлены в интеграции P5. Проверен A04 до persistent ERP ACK; описание,
+границы и передача на review №2 — [P5](../docs/architecture/p5-shared-integration.md).
+`app/api/contract.json` сохранён только для внутренней схемы ProductionContext
+и явного legacy-входа `app.legacy_main:app` (draft P3).
 
 ## Что работает
 
@@ -17,7 +22,7 @@
 - `PostgresProductionJournal` соединяет raw, историю, quality context, B и outbox одной транзакцией под общим guard demonstrator. Legacy writers отклоняются для уже управляемого изделия.
 - Выпуск проверяет версионированный производственный контекст, завершённые операции, допустимый источник/метод, цикл и качество наблюдения. Poor/reject, непривязанный сигнал и повтор старого цикла не обходят контроль.
 - `ProductionService` назначает автора/источник из аутентифицированного principal и проверяет роли; ключ журнала и registry идентичностей загружаются fail-closed из обязательных файлов.
-- HTTP: `app.main:app` публикует `/api/v2`, bearer-аутентификацию, RBAC, проверку draft-схем и маршруты событий, B, решений, циклов, выпусков и deliveries. Автор решения не принимается из JSON.
+- HTTP: `app.main:app` публикует `/api/v2`, bearer/RBAC, проверяет запросы и реальные успешные ответы общей JSON Schema. Item/Card ссылаются на серверный B одной ревизии; повторное чтение не пересоздаёт B. Автор решения не принимается из JSON.
 - `OutboxDeliveryWorker` арендует committed snapshot короткой PostgreSQL-транзакцией, отправляет его вне транзакции ядра, проверяет ACK через quality workflow и сохраняет ошибки/попытки.
 - Поступление сохраняет тип изделия, ID задания, компоненты и версию сборки. Неизвестные типы компонентов и импортированное задание не выдумываются.
 - Операции различают `in_progress`, `incomplete`, `completed`, `invalid`. Полное время рассчитывается отдельно от переданного источником активного времени; пропуск границы, сомнительные часы и конфликт дают `null` с причиной.
@@ -47,8 +52,9 @@ py -3.11 -m venv .venv
 
 `GET /health/live`, `/health/ready` и OpenAPI не требуют учётной записи. Предметные маршруты используют
 `Authorization: Bearer ...`; токен сопоставляется с SHA-256 хешем из registry.
-`GET /openapi.json`, runtime-маршруты, RBAC и схемы запросов строятся из одного
-`app/api/contract.json`. Условные предметные правила дополнительно проверяет ядро.
+`GET /openapi.json`, runtime-маршруты и DTO берутся из `contracts/openapi.yaml`.
+Путь к каталогу можно задать `QC_CONTRACT_ROOT`; Compose монтирует его read-only.
+RBAC задаёт сервер; условные предметные правила дополнительно проверяет ядро.
 
 ## Серверный Compose и готовый терминальный показ
 
@@ -72,17 +78,19 @@ API: `http://127.0.0.1:8000`, схема: `/openapi.json`, интерактив�
 Миграции выполняются отдельно как `qc_admin`; сервер использует ограниченную
 роль `qc_app`. Рабочий том dev-БД из `compose.dev.yaml` не затрагивается.
 
-Из `backend/`:
+Старый `scripts/demo_server.py` рассчитан на **legacy P3**: для него отдельно
+запускается `python -m uvicorn app.legacy_main:app`, а не общий P5 API.
+Воспроизводимая проверка текущего полного A04 из `backend/`:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts/demo_server.py
+.\.venv\Scripts\python.exe scripts/test_postgres.py tests/integration/test_erp_import_a04.py -q
 ```
 
-Каждый запуск создаёт новое синтетическое изделие: импорт задания, две операции
-на двух участках с двумя операторами, входной/финальный контроль, выпуск,
-дубль, позднее наблюдение, неизменный B, запрет старой команды и её точный повтор.
-Входы и независимые ожидания — `examples/server-demo*.json`. Итог после late:
-исторический `released`, текущий blocker `disposition_review_required`.
+Проверка поднимает изолированный PostgreSQL и живые TCP API/ERP. Вариант
+`shared-ack` проверяет доработку/три повторных контроля/устранение/выпуск,
+потерянный ACK, точный повтор, старые версии после финальной и ERP-сверку.
+Тестовые контейнер/том удаляются; рабочая серверная БД сохраняется.
+Старые `examples/server-demo*.json` остаются входами legacy-показа normal/late.
 
 Для внешнего ERP роли №2 передайте ему токен из `.local/erp.token`, задайте
 `QC_ERP_RESULTS_URL` (полный URL `/external/v2/quality-results`) и включите worker:
@@ -115,7 +123,7 @@ docker compose --env-file .local/compose.env -f deploy/compose.server.yaml --pro
 
 Для уже существующей тестовой БД можно передать `TEST_DATABASE_URL` и выполнить `python -m pytest -m integration`. Имя БД обязано оканчиваться на `_test`. Тестовая учётная запись должна уметь создавать схемы и роли: fixture создаёт изолированную схему и NOLOGIN-роль, затем удаляет их. Без переменной такие тесты помечаются как skipped, поэтому для полной проверки использовать Docker-скрипт.
 
-**Текущий результат на Windows / Python 3.11.9 / PostgreSQL 17.9:** 160 тестов без БД и 64 на PostgreSQL, всего 224. Для новых интеграционных проверок импорта задан `QC_ROLE2_ROOT` на checkout PR №7 `e508868`, см. ниже. Включены настоящий HTTP → PostgreSQL-контур и отдельные процессы Uvicorn/worker с TCP-получателем. Ruff, форматирование и `pip check` проходят. Это не промышленная валидация или нагрузочное испытание.
+**Текущий результат на Windows / Python 3.11.9 / PostgreSQL 17.9:** 160 тестов без БД и 68 на PostgreSQL, всего 228 backend. Контракт и ERP теперь находятся в этом репозитории; `QC_ROLE2_ROOT` не нужен (в контрольном прогоне явно указан текущий корень). Дополнительно 27 contract/ERP и 11 frontend tests, codegen/shape/build прошли. Ruff, форматирование и `pip check` проходят. Это не промышленная валидация или нагрузочное испытание.
 
 Предыдущий срез журнала содержал 50 тестов (37 + 13); все они включены в текущий прогон. Интеграционный запуск применяет шесть миграций в изолированной PostgreSQL и проверяет соответствие схемы модели хранения; созданные им контейнер, сеть и том удаляются после тестов.
 
@@ -131,16 +139,18 @@ B/outbox и первоначальная квитанция сохраняютс
 запуска HTTP, файл ERP-токена и отдельный файл bearer учётной записи с ролью
 `integration` из `QC_IDENTITIES_FILE`. Пример ниже предполагает, что её токен
 подготовлен локально в `.local/import.token` (в git не добавляется).
-`QC_ROLE2_ROOT` указывает на корень checkout роли №2 с `contracts/` и `emulator/`.
+`contracts/` и `emulator/` теперь включены в эту поставку. `QC_ROLE2_ROOT` нужен
+только для адресного теста другого checkout. Для запуска CLI из текущего дерева
+используйте `--contract ../contracts/external-openapi.yaml`.
 Команды из `backend/`:
 
 ```powershell
-.\.venv\Scripts\python.exe -m app.import_erp --url http://127.0.0.1:8090/external/v2/work-orders --contract "$env:QC_ROLE2_ROOT/contracts/external-openapi.yaml" --profile examples/erp-import-profile.json --erp-token-file ../.local/erp.token --integration-token-file ../.local/import.token
+.\.venv\Scripts\python.exe -m app.import_erp --url http://127.0.0.1:8090/external/v2/work-orders --contract ../contracts/external-openapi.yaml --profile examples/erp-import-profile.json --erp-token-file ../.local/erp.token --integration-token-file ../.local/import.token
 # Изолированная проверка на настоящем эмуляторе, Uvicorn и PostgreSQL:
 .\.venv\Scripts\python.exe scripts/test_postgres.py tests/integration/test_erp_import.py tests/integration/test_erp_import_a04.py -q
 ```
 
-Профиль примера покрывает только `order-001`, маршрут `route-bracket@1` и три
+Профиль примера версии **2**, `erp_result_profile=dp01-0.4`, покрывает только `order-001`, маршрут `route-bracket@1` и три
 демонстрационные сборки. Для другого заказа требуется закрепить его ID и связи
 в отдельном профиле; несовпадение не угадывается. Импорт сохраняет план и не создаёт
 факты поступления, установки компонентов или завершения операций.
@@ -152,9 +162,10 @@ exit code 1, `completed=false` и безопасный код ошибки; мо
 
 Без объединённого `contracts/` или `QC_ROLE2_ROOT` проверки ERP помечаются skipped.
 Явно заданный неправильный `QC_ROLE2_ROOT` приводит к ошибке теста.
-В проверенном серверном участке A04 дефект сохранён, устранён, открытых дефектов 0,
-изделие released. **Финальный ERP ACK ещё не проверен:** внешний payload и общие
-DTO требуют изменений по review PR №6; текущая проверка заканчивается draft-outbox.
+В проверенном A04 дефект сохранён, устранён, открытых дефектов 0, изделие released,
+**финальный результат сохранён ERP и ACK проверен**. Старый draft-stream нельзя
+переключить на новый профиль: используйте новую БД/stream для demonstrator;
+существующие сообщения, ID и digest не переписываются.
 
 ## Локальный эксперимент стоимости истории
 
@@ -200,7 +211,7 @@ docker compose -f deploy/compose.dev.yaml up -d --wait
 .\.venv\Scripts\python.exe -m alembic current
 ```
 
-Этот Compose запускает только dev-БД. Полный серверный запуск с миграциями и ограниченной учётной записью `qc_app` — отдельный `compose.server.yaml`, описанный выше. UI и persistent ERP поставляет роль №2.
+Этот Compose запускает только dev-БД. Полный серверный запуск с миграциями и ограниченной учётной записью `qc_app` — отдельный `compose.server.yaml`, описанный выше. UI и persistent ERP включены из поставки №2; запускаются отдельно (`npm run dev` в frontend и `python -m emulator.server` из корня).
 
 Миграция `0001_event_journal` создаёт журнал, `0002_item_traceability` — версии истории, `0003_quality_workflow` — B/решения/outbox, `0004_production_context` — версии контекста и ограничения области, `0005_delivery_leases` — устойчивые попытки/аренды доставки, `0006_erp_imports` — исходные задания ERP, профили и квитанции импорта. Downgrade с удалением доказательной истории намеренно не выполняется.
 
@@ -255,7 +266,7 @@ scripts/impact_experiment.py синтетический поиск влияни�
 
 ## Граница с работой роли №2
 
-Сервис `IngestEvent.execute(raw, authenticated_source_id=...)` — внутренняя точка подключения. HTTP-адаптер сначала проверяет права, строгий JSON и схемы; `validate_source_payload` проверяет payload конкретного типа. Source identity и автор берутся из registry. Generated DTO пока не подключены: текущий `0.3.0-draft` роли №1 ждёт review и общей генерации роли №2. Точная карта передачи и ограничения — [P3](../docs/architecture/p3-server-integration.md).
+Сервис `IngestEvent.execute(raw, authenticated_source_id=...)` — внутренняя точка подключения. HTTP-адаптер сначала проверяет права, строгий JSON и общую схему; `validate_source_payload` проверяет payload конкретного типа. Source identity и автор берутся из registry. TypeScript/Pydantic регенерированы из 0.4.0; сервер валидирует исходное тело JSON Schema и не пересериализует raw через DTO. Историческая карта P3 — [здесь](../docs/architecture/p3-server-integration.md), текущая — [P5](../docs/architecture/p5-shared-integration.md).
 
 `received_at` присваивается сервисом; одноимённое поле во входном JSON отклоняется. Неподдерживаемые типы, включая `controller_decision`, не принимаются как события источника. Авторизованная композиция `ProductionService` вызывается из `app/api/server.py`.
 
@@ -263,12 +274,12 @@ P0/P1-срез решений и выпуска описан в [p0-quality-slic
 
 ## Текущие ограничения
 
-- Legacy-адаптер `PostgresEventJournal` по-прежнему оставляет `domain_projection_not_implemented`. Входной HTTP-адаптер ERP в `PostgresProductionJournal` проверен с явным профилем. Полный двусторонний обмен по общей схеме роли №2 ещё требует согласования исходящего payload и проверки ACK.
+- Legacy-адаптер `PostgresEventJournal` по-прежнему оставляет `domain_projection_not_implemented`. Актуальный HTTP использует `PostgresProductionJournal`; двусторонний обмен 0.4.0 проверен в A04. Совместное review корректирующей схемы №2 остаётся открытым.
 - Компоненты пока представлены ID из поступления, без типа из справочника и вложенного дерева. Неоднозначные/отсутствующие паспорта явно отмечены. Связи операций проверяются внутри изделия; глобальная проверка одинакового operation_run_id между изделиями ещё предстоит.
 - Legacy-адаптеры не являются полным предметным обработчиком. HTTP использует интегрированный путь `PostgresProductionJournal`.
 - Снимки истории и их версии содержат открытые метаданные и не защищены AEAD. Чтение снимка не проверяет заново исходники; `replay` проверяет использованные исходники. Владелец БД может обойти триггеры: полноту выборки при удалении/перепривязке фактов нужно защищать внешними контрольными точками.
 - Replay читает все надёжно привязанные факты изделия; некорректное содержимое legacy-факта или недоступный старый ключ блокирует пересчёт с откатом. Масштабирование пересчёта и хранения полных версий нужно измерять отдельно.
-- Серверный HTTP draft работает; общей согласованной спецификации/codegen, UI и persistent ERP-эмулятора ещё нет. Transport authentication и RBAC проверены; TLS deployment, эксплуатационный identity lifecycle и restore-процедура ещё не собраны.
+- Общая спецификация/codegen, UI и persistent ERP работают в границе P5; полный browser E2E/скринкаст, остальные A01–A14, TLS deployment, эксплуатационный identity lifecycle и restore-процедура ещё не закрыты.
 - AEAD проверяет отдельную запись, не полноту журнала: владелец БД может отключить триггеры и удалить запись. Необходимые границы защиты, внешние контрольные точки и восстановление предстоит проработать отдельно. Изменение содержимого/привязки записи обнаруживается при проверке AEAD.
 - Идентификаторы, времена и канонический хеш доступны в индексируемых метаданных. Исходный JSON хранится зашифрованным. Метаданные проекций пока не зашифрованы.
 - RFC 8785 ограничивает числовой диапазон. Время нормализуется к UTC и точности PostgreSQL/Python в микросекундах; исходная строка остаётся в зашифрованном JSON. Leap second не поддерживается текущим парсером.

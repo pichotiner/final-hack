@@ -79,8 +79,11 @@ class ProductionContext:
     rules_version: str = "quality-v2"
     route_id: str | None = None
     control_plan_version: str | None = None
+    erp_result_profile: str = "draft-p3"
 
     def __post_init__(self):
+        if self.erp_result_profile not in {"draft-p3", "dp01-0.4"}:
+            raise ValueError("Unsupported ERP result profile.")
         for name in (
             "work_order_id",
             "work_order_version",
