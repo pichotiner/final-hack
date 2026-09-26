@@ -1,26 +1,28 @@
 """Transactional per-item replay, using PostgreSQL rather than process-local locks."""
 
-import hashlib
 import json
 from dataclasses import asdict, replace
 from datetime import UTC, datetime
 from hmac import compare_digest
 from uuid import UUID
 
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import Connection, Engine
 
 from app.adapters.json_events import JsonEventCodec
+from app.adapters.locks import lock as _lock
+from app.adapters.locks import production_guard
 from app.adapters.postgres import (
     PostgresEventJournal,
     _record,
     event_projections,
     item_projection_versions,
     item_projections,
+    quality_items,
     raw_events,
 )
-from app.domain.errors import IntegrityViolation
+from app.domain.errors import IntegrityViolation, InvalidTransition
 from app.domain.events import StoredEvent
 from app.domain.traceability import (
     PROCESSOR_VERSION,
@@ -31,13 +33,6 @@ from app.domain.traceability import (
     unlinked_state,
 )
 from app.ports.journal import EventProtector
-
-
-def _lock(connection: Connection, namespace: str, *identity: str) -> None:
-    # Hash collisions only serialize unrelated keys; identities are checked by SQL.
-    encoded = json.dumps([namespace, *identity], ensure_ascii=False).encode("utf-8")
-    key = int.from_bytes(hashlib.sha256(encoded).digest()[:8], "big", signed=True)
-    connection.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": key})
 
 
 def _json_value(value):
@@ -81,6 +76,16 @@ class PostgresTraceabilityJournal(PostgresEventJournal):
     def append_if_absent(self, event: StoredEvent) -> tuple[StoredEvent, bool]:
         envelope = event.metadata.envelope
         with self.engine.begin() as connection:
+            production_guard(connection)
+            if (
+                connection.scalar(
+                    select(quality_items.c.item_id).where(
+                        quality_items.c.item_id == envelope.item_id
+                    )
+                )
+                is not None
+            ):
+                raise InvalidTransition("Use the production journal for quality-managed items.")
             # Always event key before item key. Replay only takes the item key.
             _lock(connection, "event", envelope.source_id, envelope.event_id)
             row = (
@@ -200,6 +205,14 @@ class PostgresTraceabilityJournal(PostgresEventJournal):
     def replay(self, item_id: str) -> dict | None:
         """Verify all selected facts and rebuild. Unchanged replay creates no revision."""
         with self.engine.begin() as connection:
+            production_guard(connection)
+            if (
+                connection.scalar(
+                    select(quality_items.c.item_id).where(quality_items.c.item_id == item_id)
+                )
+                is not None
+            ):
+                raise InvalidTransition("Use the production journal for quality-managed replay.")
             _lock(connection, "item", item_id)
             facts = self._facts(connection, item_id)
             if not facts:

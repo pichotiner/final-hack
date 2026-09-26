@@ -47,6 +47,7 @@ class TraceFact:
     shift_id: str | None = None
     previous_operation_run_id: str | None = None
     reported_duration: Duration | None = None
+    details: dict | None = None
 
     @property
     def event_type(self) -> EventType:
@@ -114,6 +115,33 @@ def trace_fact(metadata: RecordMetadata, document: dict) -> TraceFact:
                 origin="reported",
                 evidence_record_ids=(metadata.record_id,),
             )
+    elif kind == EventType.OPERATOR_ACTION:
+        fields["details"] = {
+            "action_type": _id(payload.get("action_type"), "action_type", required=True),
+            "details": payload.get("details", {}),
+        }
+    elif kind == EventType.MACHINE_STATE:
+        state = payload.get("state")
+        if state not in {"normal", "warning", "stopped"}:
+            raise InvalidEnum("Unsupported machine state.")
+        fields["details"] = {
+            "state": state,
+            "parameters": payload.get("parameters", {}),
+            "description": payload.get("description"),
+        }
+    elif kind == EventType.INSPECTION_OBSERVED:
+        fields["details"] = {
+            key: payload.get(key)
+            for key in (
+                "checkpoint_id",
+                "inspection_phase",
+                "inspection_result",
+                "observation_quality",
+                "confidence",
+                "defects",
+                "analyzer_version",
+            )
+        }
     return TraceFact(metadata=metadata, **links, **fields)
 
 
@@ -140,6 +168,7 @@ class TimelineEntry:
     equipment_id: str | None
     projection_status: str
     issues: tuple[str, ...]
+    details: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -341,6 +370,7 @@ def rebuild_history(item_id: str, source_facts: list[TraceFact]) -> ItemHistory:
                 equipment_id=fact.equipment_id,
                 projection_status="unresolved" if issues else "applied",
                 issues=tuple(sorted(set(issues))),
+                details=fact.details,
             )
         )
     return ItemHistory(

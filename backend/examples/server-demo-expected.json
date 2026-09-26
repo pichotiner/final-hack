@@ -1,0 +1,6 @@
+{
+  "normal": {"disposition": "released", "release_allowed_now": true, "confirmed_defects": 0},
+  "duplicate": {"status": "duplicate"},
+  "late": {"disposition": "released", "release_allowed_now": false, "disposition_review_required": true},
+  "stale": {"error_code": "stale_revision"}
+}

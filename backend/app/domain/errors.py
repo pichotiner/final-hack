@@ -66,3 +66,11 @@ class AckMismatch(QualityError):
 
 class UnknownEntity(QualityError):
     code = "unknown_entity"
+
+
+class AuthenticationRequired(QualityError):
+    code = "authentication_required"
+
+
+class PermissionDenied(QualityError):
+    code = "permission_denied"

@@ -1,0 +1,76 @@
+name: final-hack-server
+
+x-core: &core
+  build: ../backend
+  user: "${QC_UID:-10001}:${QC_GID:-10001}"
+  environment: &environment
+    DATABASE_URL: postgresql+psycopg://qc_app:${QC_APP_PASSWORD:?Initialize .local credentials}@postgres:5432/final_hack
+    QC_EVENT_KEY_FILE: /run/secrets/event_key
+    QC_EVENT_KEY_ID: demo-key
+    QC_EVENT_KEY_VERSION: "1"
+    QC_IDENTITIES_FILE: /run/secrets/identities
+  secrets:
+    - event_key
+    - identities
+
+services:
+  postgres:
+    image: postgres:17.9-bookworm@sha256:47f917f7409eacd22fc5dfb1dee634e1b55cf0c01d1a7eb701be2227a03e0641
+    environment:
+      POSTGRES_USER: qc_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Initialize .local credentials}
+      POSTGRES_DB: final_hack
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qc_admin -d final_hack"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  migrate:
+    <<: *core
+    command: ["python", "-m", "app.manage", "migrate"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://qc_admin:${POSTGRES_PASSWORD}@postgres:5432/final_hack
+      QC_APP_PASSWORD: ${QC_APP_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+  api:
+    <<: *core
+    ports:
+      - "127.0.0.1:${QC_API_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2)"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+  worker:
+    <<: *core
+    profiles: ["erp"]
+    command: ["python", "-m", "app.worker"]
+    environment:
+      <<: *environment
+      QC_ERP_RESULTS_URL: ${QC_ERP_RESULTS_URL:-http://host.docker.internal:8100/external/v2/quality-results}
+      QC_ERP_TOKEN_FILE: /run/secrets/erp_token
+    secrets:
+      - event_key
+      - identities
+      - erp_token
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+secrets:
+  event_key:
+    file: ../.local/event.key
+  identities:
+    file: ../.local/identities.json
+  erp_token:
+    file: ../.local/erp.token
+
+volumes:
+  postgres_data:

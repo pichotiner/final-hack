@@ -1,6 +1,7 @@
 # Local configuration and secrets; keep distributable examples.
 .env
 .env.*
+.local/
 !.env.example
 !.env.*.example
 

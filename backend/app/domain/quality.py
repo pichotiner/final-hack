@@ -11,18 +11,21 @@ from __future__ import annotations
 
 import copy
 import hashlib
-import json
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from threading import RLock
 from uuid import uuid4
 
+import rfc8785
+
+from app.domain.control import ProductionContext
 from app.domain.errors import (
     AckMismatch,
     BasisMismatch,
     IdempotencyConflict,
     InvalidTransition,
+    PermissionDenied,
     ReleaseBlocked,
     StaleRevision,
     UnknownEntity,
@@ -34,8 +37,14 @@ def _now() -> datetime:
 
 
 def _digest(value: object) -> str:
-    body = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(body.encode("utf-8")).hexdigest()
+    def canonical(value):
+        if isinstance(value, (list, tuple)):
+            return [canonical(part) for part in value]
+        if isinstance(value, dict):
+            return {key: canonical(part) for key, part in value.items()}
+        return value
+
+    return hashlib.sha256(rfc8785.dumps(canonical(value))).hexdigest()
 
 
 def _id(value: str, name: str) -> str:
@@ -48,7 +57,7 @@ def _id(value: str, name: str) -> str:
 class Observation:
     observation_id: str
     item_id: str
-    cycle_id: str
+    cycle_id: str | None
     checkpoint_id: str
     result: str
     effective_result: str
@@ -58,6 +67,17 @@ class Observation:
     source_event_id: str | None
     created_at: datetime
     replaces_observation_id: str | None = None
+    source_id: str | None = None
+    component_id: str | None = None
+    region_id: str | None = None
+    analyzer_version: str | None = None
+    operation_run_id: str | None = None
+    record_id: str | None = None
+    occurred_at: datetime | None = None
+    time_quality: str = "uncertain"
+    identification_status: str = "uncertain"
+    inspection_phase: str | None = None
+    control_session_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -68,6 +88,8 @@ class ReworkOperation:
     previous_operation_run_id: str
     status: str
     created_at: datetime
+    finished_at: datetime | None = None
+    time_quality: str = "uncertain"
 
 
 @dataclass(frozen=True)
@@ -81,18 +103,28 @@ class Basis:
     nonconformity_ids: tuple[str, ...]
     blockers: tuple[str, ...]
     created_at: datetime
+    context_snapshot: dict = field(default_factory=dict)
+    evidence_record_ids: tuple[str, ...] = ()
+    decision_ids: tuple[str, ...] = ()
+    analysis_snapshot: dict = field(default_factory=dict)
+    processor_version: str = "quality-v2"
+    control_assessments: tuple[dict, ...] = ()
 
 
 @dataclass
 class Nonconformity:
     nonconformity_id: str
     item_id: str
-    candidate_key: tuple[str, ...]
+    candidate_key: tuple[str | None, ...]
     status: str = "pending_review"
     resolution_status: str = "not_applicable"
     review_required: bool = False
     decision_ids: list[str] = field(default_factory=list)
     resolution_ids: list[str] = field(default_factory=list)
+    cause_status: str = "unresolved"
+    cause_category: str = "unknown"
+    cause_evidence_record_ids: tuple[str, ...] = ()
+    cause_limitations: tuple[str, ...] = ("cause_not_established",)
 
 
 @dataclass(frozen=True)
@@ -110,6 +142,12 @@ class Decision:
     created_at: datetime
     rework_operation_id: str | None = None
     observation_ids: tuple[str, ...] = ()
+    cause_status: str = "unresolved"
+    cause_category: str = "unknown"
+    cause_evidence_record_ids: tuple[str, ...] = ()
+    operation_run_id: str | None = None
+    operator_id: str | None = None
+    action_record_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -132,7 +170,7 @@ class _Item:
     item_id: str
     cycle_id: str
     required_checkpoints: tuple[str, ...]
-    route_known: bool = True
+    route_known: bool = False
     context_revision: int = 0
     observations: dict[str, Observation] = field(default_factory=dict)
     rework_operations: dict[str, ReworkOperation] = field(default_factory=dict)
@@ -147,6 +185,11 @@ class _Item:
     review_required: bool = False
     disposition_review_required: bool = False
     initial_cycle_id: str = "cycle-1"
+    context: ProductionContext | None = None
+    production_history: dict = field(default_factory=dict)
+    cycles: dict[str, dict] = field(default_factory=dict)
+    evidence_record_ids: list[str] = field(default_factory=list)
+    scope_constraints: dict[str, str] = field(default_factory=dict)
 
 
 class QualityWorkflow:
@@ -157,6 +200,7 @@ class QualityWorkflow:
         self._items: dict[str, _Item] = {}
         self._commands: dict[tuple[str, str, str, str], tuple[str, dict]] = {}
         self._lock = RLock()
+        self._batch_depth = 0
 
     def open_item(
         self,
@@ -164,9 +208,13 @@ class QualityWorkflow:
         *,
         required_checkpoints: Iterable[str] = ("incoming", "final"),
         cycle_id: str = "cycle-1",
-        route_known: bool = True,
+        route_known: bool = False,
+        context: ProductionContext | None = None,
     ) -> None:
         item_id = _id(item_id, "item_id")
+        if context is not None:
+            required_checkpoints = tuple(rule.checkpoint_id for rule in context.controls)
+            route_known = True
         checkpoints = tuple(
             dict.fromkeys(_id(value, "checkpoint_id") for value in required_checkpoints)
         )
@@ -181,6 +229,27 @@ class QualityWorkflow:
                 checkpoints,
                 route_known=route_known,
                 initial_cycle_id=cycle_id,
+                context=context,
+                cycles={
+                    cycle_id: {
+                        "disposition_id": None,
+                        "operation_run_ids": list(context.required_operations) if context else [],
+                        "required_checkpoints": checkpoints,
+                        "control_sessions": (
+                            {
+                                rule.checkpoint_id: rule.control_session_id
+                                for rule in context.controls
+                            }
+                            if context
+                            else {}
+                        ),
+                        "checkpoint_operation_run_ids": (
+                            {rule.checkpoint_id: rule.operation_run_id for rule in context.controls}
+                            if context
+                            else {}
+                        ),
+                    }
+                },
             )
 
     def start_cycle(
@@ -194,13 +263,21 @@ class QualityWorkflow:
         expected_basis_id: str,
         idempotency_key: str,
         reason: str,
+        operation_run_ids: Iterable[str] = (),
+        control_sessions: dict[str, str] | None = None,
+        checkpoint_operation_run_ids: dict[str, str | None] | None = None,
     ) -> dict:
         """Open the explicitly assigned cycle after a rework disposition."""
         item = self._item(item_id)
         payload = {
             "actor_id": actor_id,
             "cycle_id": cycle_id,
-            "required_checkpoints": tuple(required_checkpoints or item.required_checkpoints),
+            "required_checkpoints": list(
+                item.required_checkpoints if required_checkpoints is None else required_checkpoints
+            ),
+            "operation_run_ids": list(operation_run_ids),
+            "control_sessions": dict(control_sessions or {}),
+            "checkpoint_operation_run_ids": dict(checkpoint_operation_run_ids or {}),
             "expected_revision": expected_revision,
             "expected_basis_id": expected_basis_id,
             "reason": reason,
@@ -210,12 +287,54 @@ class QualityWorkflow:
             self._check_context(item, expected_revision, expected_basis_id)
             if not item.dispositions or item.dispositions[-1].action != "rework":
                 raise InvalidTransition("A new cycle requires the latest disposition to be rework.")
-            if cycle_id == item.cycle_id:
-                raise InvalidTransition("The new control cycle must have a new ID.")
+            if cycle_id in item.cycles:
+                raise InvalidTransition("A previously used control cycle cannot be reopened.")
+            disposition_id = item.dispositions[-1].decision_id
+            if any(cycle["disposition_id"] == disposition_id for cycle in item.cycles.values()):
+                raise InvalidTransition("This rework assignment already has a control cycle.")
+            if set(payload["required_checkpoints"]) != set(item.required_checkpoints):
+                raise InvalidTransition("Changing the control plan requires a versioned import.")
+            runs = payload["operation_run_ids"]
+            used = {run for cycle in item.cycles.values() for run in cycle["operation_run_ids"]}
+            if item.context:
+                used.update(item.context.required_operations)
+            if not runs or len(set(runs)) != len(runs) or used.intersection(runs):
+                raise InvalidTransition("A new cycle needs distinct, newly planned operation runs.")
+            for run in runs:
+                _id(run, "operation_run_id")
+            sessions = payload["control_sessions"]
+            run_by_checkpoint = payload["checkpoint_operation_run_ids"]
+            checkpoints = set(item.required_checkpoints)
+            if set(sessions) != checkpoints or set(run_by_checkpoint) != checkpoints:
+                raise InvalidTransition(
+                    "Every checkpoint in a new cycle needs a registered control session."
+                )
+            previous_sessions = {
+                session
+                for cycle in item.cycles.values()
+                for session in cycle.get("control_sessions", {}).values()
+            }
+            if (
+                any(not isinstance(value, str) or not value for value in sessions.values())
+                or len(set(sessions.values())) != len(sessions)
+                or previous_sessions.intersection(sessions.values())
+                or any(
+                    value is not None and value not in runs for value in run_by_checkpoint.values()
+                )
+            ):
+                raise InvalidTransition(
+                    "Control sessions and operation bindings must be new and planned."
+                )
             item.cycle_id = _id(cycle_id, "cycle_id")
             item.required_checkpoints = tuple(payload["required_checkpoints"])
+            item.cycles[cycle_id] = {
+                "disposition_id": disposition_id,
+                "operation_run_ids": runs,
+                "required_checkpoints": item.required_checkpoints,
+                "control_sessions": sessions,
+                "checkpoint_operation_run_ids": run_by_checkpoint,
+            }
             item.context_revision += 1
-            item.review_required = False
             result = {"cycle_id": item.cycle_id, "context_revision": item.context_revision}
             self._emit(item)
             return result
@@ -235,6 +354,17 @@ class QualityWorkflow:
         source_event_id: str | None = None,
         cycle_id: str | None = None,
         replaces_observation_id: str | None = None,
+        source_id: str | None = None,
+        component_id: str | None = None,
+        region_id: str | None = None,
+        analyzer_version: str | None = None,
+        operation_run_id: str | None = None,
+        record_id: str | None = None,
+        occurred_at: datetime | None = None,
+        time_quality: str = "uncertain",
+        identification_status: str = "uncertain",
+        inspection_phase: str | None = None,
+        control_session_id: str | None = None,
     ) -> dict:
         """Attach one trusted observation and create/update its defect candidate."""
         item = self._item(item_id)
@@ -244,11 +374,15 @@ class QualityWorkflow:
             raise ValueError("Unsupported inspection result.")
         if quality not in {"good", "poor", "unknown"}:
             raise ValueError("Unsupported observation quality.")
-        if result == "defect_signs" and (not defect_ref or not defect_type):
-            raise ValueError(
-                "defect_signs requires defect_ref and defect_type in the demonstrator."
-            )
-        if result == "no_defect_signs" and quality in {"poor", "unknown"}:
+        if result == "defect_signs" and not defect_type:
+            raise ValueError("defect_signs requires defect_type.")
+        if occurred_at is not None and (
+            occurred_at.tzinfo is None or occurred_at.utcoffset() is None
+        ):
+            raise ValueError("Observation time must have a timezone.")
+        if cycle_id is not None and cycle_id not in item.cycles:
+            raise InvalidTransition("The observation refers to an unregistered cycle.")
+        if quality in {"poor", "unknown"}:
             effective = "not_assessable"
         else:
             effective = result
@@ -257,13 +391,29 @@ class QualityWorkflow:
                 saved = item.observations[observation_id]
                 if (
                     saved.checkpoint_id != checkpoint_id
-                    or saved.cycle_id != (cycle_id or item.cycle_id)
+                    or saved.cycle_id != cycle_id
                     or saved.result != result
                     or saved.quality != quality
                     or saved.defect_ref != defect_ref
                     or saved.defect_type != defect_type
                     or saved.source_event_id != source_event_id
                     or saved.replaces_observation_id != replaces_observation_id
+                    or any(
+                        getattr(saved, name) != value
+                        for name, value in {
+                            "source_id": source_id,
+                            "component_id": component_id,
+                            "region_id": region_id,
+                            "analyzer_version": analyzer_version,
+                            "operation_run_id": operation_run_id,
+                            "record_id": record_id,
+                            "occurred_at": occurred_at,
+                            "time_quality": time_quality,
+                            "identification_status": identification_status,
+                            "inspection_phase": inspection_phase,
+                            "control_session_id": control_session_id,
+                        }.items()
+                    )
                 ):
                     raise IdempotencyConflict("Observation ID was reused with different content.")
                 return {
@@ -275,9 +425,12 @@ class QualityWorkflow:
                 replaced = item.observations.get(replaces_observation_id)
                 if (
                     replaced is None
-                    or replaced.cycle_id != (cycle_id or item.cycle_id)
+                    or cycle_id is None
+                    or replaced.cycle_id != cycle_id
                     or replaced.checkpoint_id != checkpoint_id
                     or replaced.effective_result != "not_assessable"
+                    or replaced.component_id != component_id
+                    or replaced.region_id != region_id
                 ):
                     raise InvalidTransition(
                         "Replacement must refer to a not-assessable control in the same "
@@ -286,7 +439,7 @@ class QualityWorkflow:
             observation = Observation(
                 observation_id=observation_id,
                 item_id=item_id,
-                cycle_id=cycle_id or item.cycle_id,
+                cycle_id=cycle_id,
                 checkpoint_id=checkpoint_id,
                 result=result,
                 effective_result=effective,
@@ -296,12 +449,23 @@ class QualityWorkflow:
                 source_event_id=source_event_id,
                 created_at=self.clock(),
                 replaces_observation_id=replaces_observation_id,
+                source_id=source_id,
+                component_id=component_id,
+                region_id=region_id,
+                analyzer_version=analyzer_version,
+                operation_run_id=operation_run_id,
+                record_id=record_id,
+                occurred_at=occurred_at,
+                time_quality=time_quality,
+                identification_status=identification_status,
+                inspection_phase=inspection_phase,
+                control_session_id=control_session_id,
             )
             item.observations[observation_id] = observation
             if item.dispositions and item.dispositions[-1].action == "released":
                 item.disposition_review_required = True
-            if effective == "defect_signs":
-                candidate_key = (item_id, observation.cycle_id, defect_ref or observation_id)
+            if defect_type is not None:
+                candidate_key = self._candidate_key(observation)
                 existing = next(
                     (
                         nc
@@ -328,6 +492,8 @@ class QualityWorkflow:
     def create_basis(self, item_id: str, target_id: str | None = None) -> dict:
         item = self._item(item_id)
         with self._lock:
+            if target_id is not None and target_id not in item.nonconformities:
+                raise UnknownEntity("Unknown nonconformity in this item.")
             basis = Basis(
                 basis_id=str(uuid4()),
                 item_id=item_id,
@@ -338,6 +504,20 @@ class QualityWorkflow:
                 nonconformity_ids=tuple(item.nonconformities),
                 blockers=self._blockers(item),
                 created_at=self.clock(),
+                context_snapshot={
+                    "production_context": asdict(item.context) if item.context else None,
+                    "production_history": copy.deepcopy(item.production_history),
+                    "cycles": copy.deepcopy(item.cycles),
+                },
+                evidence_record_ids=tuple(item.evidence_record_ids),
+                decision_ids=tuple(d.decision_id for d in [*item.decisions, *item.dispositions]),
+                analysis_snapshot={
+                    "nonconformities": [self._nc_view(n) for n in item.nonconformities.values()],
+                    "observations": [self._observation_view(o) for o in item.observations.values()],
+                    "scope_constraints": copy.deepcopy(item.scope_constraints),
+                    "kpi": self._kpi(item),
+                },
+                control_assessments=self._control_assessments(item),
             )
             item.bases[basis.basis_id] = basis
             return self._basis_view(basis)
@@ -350,6 +530,8 @@ class QualityWorkflow:
         previous_operation_run_id: str,
         status: str = "completed",
         cycle_id: str | None = None,
+        finished_at: datetime | None = None,
+        time_quality: str = "uncertain",
     ) -> dict:
         """Record the actual rework operation; disposition alone is not execution."""
         item = self._item(item_id)
@@ -360,27 +542,49 @@ class QualityWorkflow:
         with self._lock:
             saved = item.rework_operations.get(operation_id)
             if saved is not None:
-                if (
+                same = not (
                     saved.previous_operation_run_id != previous_operation_run_id
                     or saved.status != status
-                    or saved.cycle_id != (cycle_id or item.cycle_id)
+                    or saved.cycle_id != cycle_id
+                    or saved.finished_at != finished_at
+                    or saved.time_quality != time_quality
+                )
+                if same:
+                    return {
+                        "status": "duplicate",
+                        "operation_id": operation_id,
+                        "context_revision": item.context_revision,
+                    }
+                if not (
+                    saved.status == "in_progress"
+                    and status in {"completed", "invalid"}
+                    and saved.cycle_id == cycle_id
+                    and saved.previous_operation_run_id == previous_operation_run_id
                 ):
                     raise InvalidTransition(
                         "A rework operation ID cannot be reused with different facts."
                     )
-                return {
-                    "status": "duplicate",
-                    "operation_id": operation_id,
-                    "context_revision": item.context_revision,
-                }
             if (
                 item.cycle_id == item.initial_cycle_id
                 or not item.dispositions
                 or item.dispositions[-1].action != "rework"
             ):
                 raise InvalidTransition("A rework operation requires an assigned rework cycle.")
-            if cycle_id is not None and cycle_id != item.cycle_id:
+            if cycle_id != item.cycle_id:
                 raise InvalidTransition("A rework operation must belong to the active cycle.")
+            if operation_id not in item.cycles[item.cycle_id]["operation_run_ids"]:
+                raise InvalidTransition("The operation was not planned in this cycle.")
+            known_prior = set(item.context.required_operations) if item.context else set()
+            known_prior.update(item.rework_operations)
+            if (
+                previous_operation_run_id not in known_prior
+                or previous_operation_run_id == operation_id
+            ):
+                raise InvalidTransition("The previous operation must exist on this item.")
+            if finished_at is not None and (
+                finished_at.tzinfo is None or finished_at.utcoffset() is None
+            ):
+                raise ValueError("Operation time must have a timezone.")
             operation = ReworkOperation(
                 operation_id=operation_id,
                 item_id=item_id,
@@ -388,6 +592,8 @@ class QualityWorkflow:
                 previous_operation_run_id=previous_operation_run_id,
                 status=status,
                 created_at=self.clock(),
+                finished_at=finished_at,
+                time_quality=time_quality,
             )
             item.rework_operations[operation_id] = operation
             item.context_revision += 1
@@ -408,14 +614,27 @@ class QualityWorkflow:
         expected_revision: int,
         expected_basis_id: str,
         idempotency_key: str,
+        cause_status: str = "unresolved",
+        cause_category: str = "unknown",
+        cause_evidence_record_ids: Iterable[str] = (),
+        operation_run_id: str | None = None,
+        operator_id: str | None = None,
+        action_record_id: str | None = None,
     ) -> dict:
         item, nc = self._nonconformity(nonconformity_id)
+        cause_evidence_record_ids = tuple(cause_evidence_record_ids)
         payload = {
             "actor_id": actor_id,
             "action": action,
             "reason": reason,
             "expected_revision": expected_revision,
             "expected_basis_id": expected_basis_id,
+            "cause_status": cause_status,
+            "cause_category": cause_category,
+            "cause_evidence_record_ids": cause_evidence_record_ids,
+            "operation_run_id": operation_run_id,
+            "operator_id": operator_id,
+            "action_record_id": action_record_id,
         }
 
         def apply() -> dict:
@@ -427,12 +646,23 @@ class QualityWorkflow:
                     "A decision requires a supported action and non-empty reason."
                 )
             if action == "confirm" and nc.status not in {"pending_review", "needs_check"}:
-                if nc.status != "confirmed" or not nc.review_required:
+                if nc.status not in {"confirmed", "rejected"} or not nc.review_required:
                     raise InvalidTransition(
                         "Only a pending or review-required defect can be confirmed."
                     )
-            if action == "reject" and nc.status == "rejected":
+            if action == "reject" and nc.status == "rejected" and not nc.review_required:
                 raise InvalidTransition("The nonconformity is already rejected.")
+            self._validate_cause(
+                item,
+                action=action,
+                basis_id=expected_basis_id,
+                cause_status=cause_status,
+                cause_category=cause_category,
+                evidence_record_ids=cause_evidence_record_ids,
+                operation_run_id=operation_run_id,
+                operator_id=operator_id,
+                action_record_id=action_record_id,
+            )
             old = nc.decision_ids[-1] if nc.decision_ids else None
             item.context_revision += 1
             was_resolved = nc.resolution_status == "resolved"
@@ -450,6 +680,12 @@ class QualityWorkflow:
             )
             if action != "confirm" or not was_resolved:
                 nc.review_required = False
+            nc.cause_status = cause_status if action == "confirm" else "unresolved"
+            nc.cause_category = cause_category if action == "confirm" else "unknown"
+            nc.cause_evidence_record_ids = cause_evidence_record_ids if action == "confirm" else ()
+            nc.cause_limitations = (
+                () if nc.cause_status == "established" else ("cause_not_established",)
+            )
             item.review_required = any(
                 value.review_required for value in item.nonconformities.values()
             )
@@ -465,6 +701,12 @@ class QualityWorkflow:
                 context_revision=item.context_revision,
                 supersedes_id=old,
                 created_at=self.clock(),
+                cause_status=nc.cause_status,
+                cause_category=nc.cause_category,
+                cause_evidence_record_ids=nc.cause_evidence_record_ids,
+                operation_run_id=operation_run_id,
+                operator_id=operator_id,
+                action_record_id=action_record_id,
             )
             item.decisions.append(decision)
             nc.decision_ids.append(decision.decision_id)
@@ -538,19 +780,31 @@ class QualityWorkflow:
             defect_checkpoints = {
                 value.checkpoint_id
                 for value in item.observations.values()
-                if value.defect_ref == nc.candidate_key[-1]
-                and value.cycle_id == nc.candidate_key[1]
+                if self._candidate_key(value) == nc.candidate_key
             }
             if any(
                 value.cycle_id != item.cycle_id
                 or value.checkpoint_id not in defect_checkpoints
-                or value.created_at < operation.created_at
+                or not self._usable(item, value)
+                or operation.time_quality != "synchronized"
+                or operation.finished_at is None
+                or value.occurred_at is None
+                or value.occurred_at <= operation.finished_at
+                or value.operation_run_id != operation.operation_id
+                or (value.component_id, value.region_id) != nc.candidate_key[2:4]
                 for value in observations
                 if value
             ):
                 raise InvalidTransition(
                     "Repeat control must follow rework on the defect checkpoint in this cycle."
                 )
+            if any(
+                value.cycle_id == item.cycle_id
+                and self._candidate_key(value) == nc.candidate_key
+                and value.defect_type is not None
+                for value in item.observations.values()
+            ):
+                raise InvalidTransition("An unresolved defect observation contradicts resolution.")
             item.context_revision += 1
             nc.resolution_status = "resolved"
             nc.review_required = False
@@ -640,30 +894,114 @@ class QualityWorkflow:
 
         return self._command(item_id, "item_disposition", item_id, idempotency_key, payload, apply)
 
-    def acknowledge(
-        self, message_id: str, *, result_version: int, content_digest: str, application_status: str
-    ) -> dict:
+    def reopen_nonconformity(
+        self,
+        nonconformity_id,
+        *,
+        reason,
+        actor_id,
+        expected_revision,
+        expected_basis_id,
+        idempotency_key,
+    ):
+        item, nc = self._nonconformity(nonconformity_id)
+        payload = {
+            "reason": reason,
+            "actor_id": actor_id,
+            "action": "reopen",
+            "expected_revision": expected_revision,
+            "expected_basis_id": expected_basis_id,
+        }
+
+        def apply():
+            self._check_context(item, expected_revision, expected_basis_id, nonconformity_id)
+            if nc.status != "confirmed" or nc.resolution_status != "resolved":
+                raise InvalidTransition("Only a resolved confirmed defect can be reopened.")
+            item.context_revision += 1
+            decision = Decision(
+                decision_id=str(uuid4()),
+                command_type="resolution_decision",
+                target_id=nonconformity_id,
+                action="reopen",
+                reason=reason,
+                actor_id=actor_id,
+                basis_id=expected_basis_id,
+                reviewed_revision=expected_revision,
+                context_revision=item.context_revision,
+                supersedes_id=nc.resolution_ids[-1],
+                created_at=self.clock(),
+            )
+            nc.resolution_status = "open"
+            nc.review_required = False
+            nc.resolution_ids.append(decision.decision_id)
+            item.decisions.append(decision)
+            item.review_required = any(n.review_required for n in item.nonconformities.values())
+            self._emit(item)
+            return self._decision_view(decision)
+
+        return self._command(
+            item.item_id, "resolution_decision", nonconformity_id, idempotency_key, payload, apply
+        )
+
+    def acknowledge(self, message_id: str, *, receipt: dict) -> dict:
+        if not isinstance(receipt, dict) or type(receipt.get("result_version")) is not int:
+            raise AckMismatch("ACK needs an integer result version.")
         with self._lock:
             for item in self._items.values():
                 message = item.outbox.get(message_id)
                 if message is None:
                     continue
-                if (
-                    message.result_version != result_version
-                    or message.content_digest != content_digest
+                expected = {
+                    key: message.payload[key]
+                    for key in (
+                        "message_id",
+                        "result_version",
+                        "producer_id",
+                        "external_system",
+                        "external_order_id",
+                        "external_item_id",
+                    )
+                }
+                if any(receipt.get(key) != value for key, value in expected.items()) or (
+                    receipt.get("content_digest") != message.content_digest
                 ):
                     raise AckMismatch("The ACK does not describe the stored outbox body.")
-                if application_status not in {"applied", "superseded"}:
+                if receipt.get("application_status") not in {"applied", "superseded"}:
                     raise AckMismatch("Unsupported ERP application status.")
-                saved = {
-                    "message_id": message_id,
-                    "result_version": result_version,
-                    "application_status": application_status,
-                }
+                current = receipt.get("current_version_at_accept")
+                if (
+                    receipt.get("status") not in {"accepted", "duplicate"}
+                    or type(current) is not int
+                    or current < message.result_version
+                    or (
+                        receipt["application_status"] == "applied"
+                        and current != message.result_version
+                    )
+                    or (
+                        receipt["application_status"] == "superseded"
+                        and current <= message.result_version
+                    )
+                ):
+                    raise AckMismatch("Invalid ACK commit state.")
+                try:
+                    received = datetime.fromisoformat(receipt["received_at"])
+                    if received.tzinfo is None or received.utcoffset() is None:
+                        raise ValueError
+                except (KeyError, TypeError, ValueError) as error:
+                    raise AckMismatch("ACK needs the receiver commit timestamp.") from error
+                saved = copy.deepcopy(receipt)
+                if message.ack is not None:
+                    if {k: v for k, v in saved.items() if k != "status"} != {
+                        k: v for k, v in message.ack.items() if k != "status"
+                    }:
+                        raise AckMismatch(
+                            "A repeated ACK cannot change the original commit receipt."
+                        )
+                    return copy.deepcopy(message.ack)
                 item.outbox[message_id] = OutboxMessage(
                     **{**message.__dict__, "status": "acknowledged", "ack": saved}
                 )
-                return saved
+                return copy.deepcopy(saved)
         raise UnknownEntity("Unknown outbox message.")
 
     def state(self, item_id: str) -> dict:
@@ -676,6 +1014,10 @@ class QualityWorkflow:
                 "required_checkpoints": item.required_checkpoints,
                 "context_revision": item.context_revision,
                 "release_allowed_now": not blockers,
+                "control_assessments": self._control_assessments(item),
+                "context": asdict(item.context) if item.context else None,
+                "decisions": [self._decision_view(v) for v in item.decisions],
+                "dispositions": [self._decision_view(v) for v in item.dispositions],
                 "blockers": blockers,
                 "review_required": item.review_required,
                 "disposition_review_required": item.disposition_review_required,
@@ -715,6 +1057,9 @@ class QualityWorkflow:
         apply: Callable[[], dict],
     ) -> dict:
         actor = payload.get("actor_id", "")
+        _id(actor, "actor_id")
+        _id(idempotency_key, "idempotency_key")
+        _id(payload.get("reason", ""), "reason")
         key = (actor, command_type, target_id, idempotency_key)
         digest = _digest(payload)
         with self._lock:
@@ -746,7 +1091,8 @@ class QualityWorkflow:
         if (
             basis is None
             or basis.item_id != item.item_id
-            or (target_id and basis.target_id not in {None, target_id})
+            or basis.target_id != target_id
+            or basis.cycle_id != item.cycle_id
         ):
             raise BasisMismatch("The basis does not belong to the requested context or target.")
         if (
@@ -756,27 +1102,70 @@ class QualityWorkflow:
             raise StaleRevision("The command was prepared against an old context revision.")
 
     def _emit(self, item: _Item) -> None:
+        if self._batch_depth:
+            return
         item.blockers = self._blockers(item)
         item.release_allowed_now = not item.blockers
         version = item.next_result_version
-        previous = next(reversed(item.outbox.values())).message_id if item.outbox else None
+        previous = (
+            max(item.outbox.values(), key=lambda value: value.result_version).message_id
+            if item.outbox
+            else None
+        )
+        message_id = str(uuid4())
+        decisions = {value.decision_id: value for value in item.decisions}
+        disposition = item.dispositions[-1] if item.dispositions else None
+
+        def decision_snapshot(decision):
+            if decision is None:
+                return None
+            return {
+                "decision_id": decision.decision_id,
+                "action": decision.action,
+                "reason": decision.reason,
+                "actor_id": decision.actor_id,
+                "basis_id": decision.basis_id,
+                "reviewed_revision": decision.reviewed_revision,
+            }
+
+        nonconformities = []
+        for value in item.nonconformities.values():
+            snapshot = self._nc_view(value)
+            snapshot["current_decision"] = decision_snapshot(
+                decisions.get(value.decision_ids[-1]) if value.decision_ids else None
+            )
+            snapshot["current_resolution"] = decision_snapshot(
+                decisions.get(value.resolution_ids[-1]) if value.resolution_ids else None
+            )
+            nonconformities.append(snapshot)
         payload = {
+            "message_id": message_id,
+            **{
+                name: getattr(item.context, name) if item.context else None
+                for name in (
+                    "producer_id",
+                    "external_system",
+                    "external_order_id",
+                    "external_item_id",
+                )
+            },
             "item_id": item.item_id,
             "result_version": version,
             "previous_message_id": previous,
             "context_revision": item.context_revision,
             "control_cycle_id": item.cycle_id,
-            "disposition": item.dispositions[-1].action if item.dispositions else "pending",
+            "disposition": disposition.action if disposition else "pending",
+            "disposition_decision": decision_snapshot(disposition),
             "release_allowed_now": item.release_allowed_now,
             "blockers": list(item.blockers),
-            "review_required": item.review_required,
+            "review_required": item.review_required or item.disposition_review_required,
             "disposition_review_required": item.disposition_review_required,
-            "nonconformities": [self._nc_view(value) for value in item.nonconformities.values()],
+            "nonconformities": nonconformities,
             "kpi": self._kpi(item),
         }
         body_digest = _digest(payload)
         message = OutboxMessage(
-            str(uuid4()),
+            message_id,
             item.item_id,
             version,
             previous,
@@ -790,16 +1179,30 @@ class QualityWorkflow:
 
     def _blockers(self, item: _Item) -> tuple[str, ...]:
         blockers: list[str] = []
-        if not item.route_known:
+        if not item.route_known or item.context is None:
             blockers.append("route_unknown")
-        if (
-            item.cycle_id != item.initial_cycle_id
-            and item.dispositions
-            and item.dispositions[-1].action == "rework"
-            and not any(
-                operation.cycle_id == item.cycle_id and operation.status == "completed"
-                for operation in item.rework_operations.values()
-            )
+        if item.context is None:
+            blockers.append("production_context_missing")
+        else:
+            history = item.production_history
+            if history.get("work_order_id") != item.context.work_order_id:
+                blockers.append("work_order_not_resolved")
+            if history.get("assembly_version") != item.context.assembly_version or set(
+                history.get("component_ids", ())
+            ) != set(item.context.component_ids):
+                blockers.append("assembly_not_resolved")
+            operations = {
+                value["operation_run_id"]: value for value in history.get("operations", ())
+            }
+            for run in item.context.required_operations:
+                if operations.get(run, {}).get("status") != "completed":
+                    blockers.append(f"operation_incomplete:{run}")
+        blockers.extend(f"scope_constraint:{key}" for key in sorted(item.scope_constraints))
+        if any(o.cycle_id is None for o in item.observations.values()):
+            blockers.append("observation_cycle_unresolved")
+        if item.cycle_id != item.initial_cycle_id and not all(
+            run in item.rework_operations and item.rework_operations[run].status == "completed"
+            for run in item.cycles[item.cycle_id]["operation_run_ids"]
         ):
             blockers.append("rework_operation_missing")
         for checkpoint in item.required_checkpoints:
@@ -819,9 +1222,16 @@ class QualityWorkflow:
                         for successor in current
                     )
                 }
-                if any(value.effective_result == "not_assessable" for value in effective.values()):
+                if any(not self._usable(item, value) for value in effective.values()):
                     blockers.append(f"not_assessable:{checkpoint}")
-                results = {value.effective_result for value in effective.values()}
+                results = {
+                    value.effective_result
+                    for value in effective.values()
+                    if not any(
+                        nc.candidate_key == self._candidate_key(value) and nc.status == "rejected"
+                        for nc in item.nonconformities.values()
+                    )
+                }
                 if "no_defect_signs" in results and "defect_signs" in results:
                     blockers.append(f"disputed_checkpoint:{checkpoint}")
         for nc in item.nonconformities.values():
@@ -842,9 +1252,7 @@ class QualityWorkflow:
         return {
             "inspected_items": int(
                 any(
-                    observation.cycle_id == item.cycle_id
-                    and observation.quality == "good"
-                    and observation.effective_result != "not_assessable"
+                    observation.cycle_id == item.cycle_id and self._usable(item, observation)
                     for observation in item.observations.values()
                 )
             ),
@@ -859,7 +1267,14 @@ class QualityWorkflow:
             ),
             "review_required_items": int(
                 item.review_required
+                or item.disposition_review_required
                 or any(nc.review_required for nc in item.nonconformities.values())
+            ),
+            "unresolved_cause_defects": sum(nc.cause_status != "established" for nc in confirmed),
+            "established_cause_defects": sum(nc.cause_status == "established" for nc in confirmed),
+            "confirmed_operator_errors": sum(
+                nc.cause_status == "established" and nc.cause_category == "operator"
+                for nc in confirmed
             ),
             "rework_operations": sum(
                 operation.status == "completed" for operation in item.rework_operations.values()
@@ -892,21 +1307,79 @@ class QualityWorkflow:
                 return item, item.nonconformities[nonconformity_id]
         raise UnknownEntity("Unknown nonconformity.")
 
+    def _validate_cause(
+        self,
+        item,
+        *,
+        action,
+        basis_id,
+        cause_status,
+        cause_category,
+        evidence_record_ids,
+        operation_run_id,
+        operator_id,
+        action_record_id,
+    ):
+        if cause_status not in {"unresolved", "established"}:
+            raise InvalidTransition("A human decision cannot store an automatic hypothesis.")
+        if cause_category not in {"incoming", "equipment", "operator", "other", "unknown"}:
+            raise InvalidTransition("Unsupported cause category.")
+        if cause_status == "unresolved":
+            if cause_category != "unknown" or evidence_record_ids:
+                raise InvalidTransition("An unresolved cause cannot claim a category or evidence.")
+            return
+        if action != "confirm" or cause_category == "unknown" or not evidence_record_ids:
+            raise InvalidTransition("An established cause needs a confirmed defect and evidence.")
+        basis = item.bases[basis_id]
+        if not set(evidence_record_ids).issubset(basis.evidence_record_ids):
+            raise InvalidTransition("Cause evidence must belong to the reviewed basis.")
+        timeline = item.production_history.get("timeline", ())
+        by_record = {entry["record_id"]: entry for entry in timeline}
+        if any(record not in by_record for record in evidence_record_ids):
+            raise InvalidTransition("Cause evidence is unavailable in the production history.")
+        if cause_category == "operator":
+            operation = next(
+                (
+                    value
+                    for value in item.production_history.get("operations", ())
+                    if value["operation_run_id"] == operation_run_id
+                ),
+                None,
+            )
+            action_entry = by_record.get(action_record_id)
+            if (
+                operation is None
+                or operation.get("operator_id") != operator_id
+                or action_entry is None
+                or action_entry.get("event_type") != "operator_action"
+                or action_record_id not in evidence_record_ids
+                or operation_run_id != action_entry.get("operation_run_id")
+                or operator_id != action_entry.get("operator_id")
+            ):
+                raise InvalidTransition(
+                    "An operator cause needs the reviewed operation, operator and action evidence."
+                )
+
     @staticmethod
     def _basis_view(value: Basis) -> dict:
-        return {**value.__dict__, "created_at": value.created_at.isoformat()}
+        return copy.deepcopy({**value.__dict__, "created_at": value.created_at.isoformat()})
 
     @staticmethod
     def _decision_view(value: Decision) -> dict:
         return {
             **value.__dict__,
             "observation_ids": list(value.observation_ids),
+            "cause_evidence_record_ids": list(value.cause_evidence_record_ids),
             "created_at": value.created_at.isoformat(),
         }
 
     @staticmethod
     def _observation_view(value: Observation) -> dict:
-        return {**value.__dict__, "created_at": value.created_at.isoformat()}
+        return {
+            **value.__dict__,
+            "created_at": value.created_at.isoformat(),
+            "occurred_at": value.occurred_at.isoformat() if value.occurred_at else None,
+        }
 
     @staticmethod
     def _rework_view(value: ReworkOperation) -> dict:
@@ -922,44 +1395,380 @@ class QualityWorkflow:
 
     @staticmethod
     def _outbox_view(value: OutboxMessage) -> dict:
-        return {**value.__dict__}
+        return copy.deepcopy(value.__dict__)
+
+    @staticmethod
+    def _candidate_key(value: Observation) -> tuple:
+        scope = (value.source_id, value.item_id, value.component_id, value.region_id)
+        if value.defect_ref and value.source_id:
+            return (*scope, value.defect_ref)
+        return (*scope, None, value.observation_id)
+
+    @classmethod
+    def _control_assessments(cls, item: _Item) -> tuple[dict, ...]:
+        if item.context is None:
+            return ()
+        assessments = []
+        for requirement in item.context.controls:
+            current = [
+                value
+                for value in item.observations.values()
+                if value.cycle_id == item.cycle_id
+                and value.checkpoint_id == requirement.checkpoint_id
+            ]
+            active = [
+                value
+                for value in current
+                if not any(
+                    successor.replaces_observation_id == value.observation_id
+                    for successor in current
+                )
+            ]
+            usable = [value for value in active if cls._usable(item, value)]
+            results = {value.effective_result for value in usable}
+            if not current:
+                status = "missing"
+            elif not usable:
+                status = "not_assessable"
+            elif {"defect_signs", "no_defect_signs"}.issubset(results):
+                status = "disputed"
+            else:
+                status = "assessable"
+            assessments.append(
+                {
+                    "checkpoint_id": requirement.checkpoint_id,
+                    "requirement_version": (
+                        f"{item.context.route_version}:{item.context.rules_version}:"
+                        f"{requirement.analyzer_version}"
+                    ),
+                    "cycle_id": item.cycle_id,
+                    "component_id": requirement.component_id,
+                    "region_id": requirement.region_id,
+                    "inspection_phase": requirement.inspection_phase,
+                    "operation_run_id": item.cycles[item.cycle_id]
+                    .get("checkpoint_operation_run_ids", {})
+                    .get(requirement.checkpoint_id),
+                    "control_session_id": item.cycles[item.cycle_id]
+                    .get("control_sessions", {})
+                    .get(requirement.checkpoint_id),
+                    "assessment_status": status,
+                    "effective_results": sorted(results),
+                    "selected_record_ids": [value.record_id for value in usable],
+                    "contradicting_record_ids": (
+                        [value.record_id for value in usable] if status == "disputed" else []
+                    ),
+                    "excluded_inputs": [
+                        {
+                            "observation_id": value.observation_id,
+                            "record_id": value.record_id,
+                            "reasons": cls._exclusion_reasons(item, requirement, value),
+                        }
+                        for value in current
+                        if value not in usable
+                    ],
+                }
+            )
+        return tuple(assessments)
+
+    @staticmethod
+    def _exclusion_reasons(item, requirement, value):
+        reasons = []
+        if any(
+            successor.replaces_observation_id == value.observation_id
+            for successor in item.observations.values()
+        ):
+            reasons.append("superseded_by_repeat_control")
+        if value.quality != "good" or value.effective_result == "not_assessable":
+            reasons.append("observation_not_assessable")
+        if value.identification_status != "reliable":
+            reasons.append("identification_unreliable")
+        if value.time_quality != "synchronized" or value.occurred_at is None:
+            reasons.append("time_unreliable")
+        if value.record_id is None:
+            reasons.append("source_record_missing")
+        plan = item.cycles.get(value.cycle_id, {})
+        if value.control_session_id != plan.get("control_sessions", {}).get(value.checkpoint_id):
+            reasons.append("control_session_unresolved")
+        if value.operation_run_id != plan.get("checkpoint_operation_run_ids", {}).get(
+            value.checkpoint_id
+        ):
+            reasons.append("operation_binding_mismatch")
+        if value.inspection_phase != requirement.inspection_phase:
+            reasons.append("inspection_phase_mismatch")
+        if (value.source_id, value.analyzer_version) != (
+            requirement.source_id,
+            requirement.analyzer_version,
+        ):
+            reasons.append("method_not_applicable")
+        if (value.component_id, value.region_id) != (
+            requirement.component_id,
+            requirement.region_id,
+        ):
+            reasons.append("control_scope_mismatch")
+        if not reasons and not QualityWorkflow._usable(item, value):
+            reasons.append("operation_time_not_applicable")
+        return reasons
+
+    @staticmethod
+    def _usable(item: _Item, value: Observation) -> bool:
+        if (
+            item.context is None
+            or value.cycle_id is None
+            or value.quality != "good"
+            or value.effective_result == "not_assessable"
+            or value.identification_status != "reliable"
+            or value.time_quality != "synchronized"
+            or value.occurred_at is None
+            or value.record_id is None
+        ):
+            return False
+        rule = next(
+            (r for r in item.context.controls if r.checkpoint_id == value.checkpoint_id),
+            None,
+        )
+        if rule is None:
+            return False
+        plan = item.cycles.get(value.cycle_id)
+        if plan is None or (
+            value.control_session_id != plan.get("control_sessions", {}).get(value.checkpoint_id)
+            or value.operation_run_id
+            != plan.get("checkpoint_operation_run_ids", {}).get(value.checkpoint_id)
+            or value.inspection_phase != rule.inspection_phase
+            or (
+                value.source_id,
+                value.analyzer_version,
+                value.component_id,
+                value.region_id,
+            )
+            != (rule.source_id, rule.analyzer_version, rule.component_id, rule.region_id)
+        ):
+            return False
+        if value.operation_run_id is None:
+            return rule.inspection_phase == "incoming"
+        operation = next(
+            (
+                part
+                for part in item.production_history.get("operations", ())
+                if part["operation_run_id"] == value.operation_run_id
+            ),
+            None,
+        )
+        if operation is None and value.operation_run_id in item.rework_operations:
+            rework = item.rework_operations[value.operation_run_id]
+            operation = {
+                "operation_run_id": rework.operation_id,
+                "status": rework.status,
+                "started_at": None,
+                "finished_at": rework.finished_at.isoformat() if rework.finished_at else None,
+                "issues": (
+                    [] if rework.time_quality == "synchronized" else ["uncertain_source_time"]
+                ),
+            }
+        if operation is None or operation.get("status") != "completed":
+            return False
+        if "uncertain_source_time" in operation.get("issues", ()):
+            return False
+        if rule.inspection_phase in {"after_operation", "final"}:
+            boundary = operation.get("finished_at")
+            return bool(boundary and value.occurred_at >= datetime.fromisoformat(boundary))
+        if rule.inspection_phase == "before_operation":
+            boundary = operation.get("started_at")
+            return bool(boundary and value.occurred_at <= datetime.fromisoformat(boundary))
+        return False
+
+    def set_production_history(
+        self, item_id: str, history: dict, record_ids: Iterable[str]
+    ) -> None:
+        """Internal projection hook; callers authenticate raw before invoking it."""
+        with self._lock:
+            item = self._item(item_id)
+            history = copy.deepcopy(history)
+            ids = list(dict.fromkeys(record_ids))
+            if item.production_history == history and item.evidence_record_ids == ids:
+                return
+            item.production_history = history
+            item.evidence_record_ids = ids
+            item.context_revision += 1
+            if item.dispositions:
+                item.disposition_review_required = True
+            for nc in item.nonconformities.values():
+                if nc.decision_ids:
+                    nc.review_required = True
+            item.review_required = any(nc.review_required for nc in item.nonconformities.values())
+            self._emit(item)
+
+    def project_source_fact(
+        self, item_id: str, document: dict, record_id: str, history: dict, occurred_at: datetime
+    ) -> tuple[str, tuple[str, ...]]:
+        """One authenticated source fact, one context revision and one outbox snapshot."""
+        with self._lock:
+            item = self._item(item_id)
+            before = copy.deepcopy(item)
+            self._batch_depth += 1
+            issues = []
+            try:
+                self.set_production_history(
+                    item_id, history, [*item.evidence_record_ids, record_id]
+                )
+                payload = document["payload"]
+                run = document.get("operation_run_id")
+                if item.context and not item.context.authorizes(
+                    document["source_id"], document["event_type"], document.get("station_id")
+                ):
+                    raise PermissionDenied(
+                        "This source cannot assert the supplied production fact."
+                    )
+                cycle = next(
+                    (key for key, plan in item.cycles.items() if run in plan["operation_run_ids"]),
+                    None,
+                )
+                if item.context and run in item.context.required_operations:
+                    cycle = item.initial_cycle_id
+                if document["event_type"] == "inspection_observed":
+                    checkpoint = payload["checkpoint_id"]
+                    session = payload.get("control_session_id")
+                    claimed = payload.get("control_cycle_id")
+                    matches = [
+                        key
+                        for key, plan in item.cycles.items()
+                        if plan.get("control_sessions", {}).get(checkpoint) == session
+                        and plan.get("checkpoint_operation_run_ids", {}).get(checkpoint) == run
+                    ]
+                    cycle = matches[0] if len(matches) == 1 else None
+                    if claimed is not None and claimed != cycle:
+                        cycle = None
+                    if cycle is None:
+                        issues.append("observation_cycle_unresolved")
+                    rule = (
+                        next(
+                            (
+                                value
+                                for value in item.context.controls
+                                if value.checkpoint_id == checkpoint
+                            ),
+                            None,
+                        )
+                        if item.context
+                        else None
+                    )
+                    for index, defect in enumerate(payload["defects"] or [None]):
+                        sign = defect or {}
+                        self.record_observation(
+                            item_id,
+                            observation_id=f"{record_id}:{index}",
+                            checkpoint_id=payload["checkpoint_id"],
+                            result=payload["inspection_result"],
+                            quality=payload["observation_quality"],
+                            defect_ref=sign.get("defect_ref"),
+                            defect_type=sign.get("type"),
+                            source_event_id=document["event_id"],
+                            cycle_id=cycle,
+                            source_id=document["source_id"],
+                            component_id=sign.get("component_id")
+                            or (rule.component_id if rule else None),
+                            region_id=sign.get("region_id") or (rule.region_id if rule else None),
+                            analyzer_version=payload.get("analyzer_version"),
+                            operation_run_id=run,
+                            record_id=record_id,
+                            occurred_at=occurred_at,
+                            time_quality=document.get("time_quality", "uncertain"),
+                            identification_status=document.get(
+                                "identification_status", "uncertain"
+                            ),
+                            inspection_phase=payload.get("inspection_phase"),
+                            control_session_id=session,
+                        )
+                if document["event_type"] in {"operation_started", "operation_finished"}:
+                    operation = next(
+                        (
+                            op
+                            for op in history.get("operations", ())
+                            if op["operation_run_id"] == run
+                        ),
+                        None,
+                    )
+                    if cycle is not None and cycle != item.initial_cycle_id and operation:
+                        if operation["status"] in {"completed", "in_progress", "invalid"}:
+                            self.record_rework_operation(
+                                item_id,
+                                operation_id=run,
+                                cycle_id=cycle,
+                                previous_operation_run_id=operation["previous_operation_run_id"],
+                                status=operation["status"],
+                                finished_at=(
+                                    datetime.fromisoformat(operation["finished_at"])
+                                    if operation.get("finished_at")
+                                    else None
+                                ),
+                                time_quality=(
+                                    "uncertain"
+                                    if "uncertain_source_time" in operation.get("issues", ())
+                                    else "synchronized"
+                                ),
+                            )
+                item.context_revision = before.context_revision + 1
+                if item.context is None:
+                    issues.append("work_order_not_resolved")
+            except Exception:
+                self._items[item_id] = before
+                raise
+            finally:
+                self._batch_depth -= 1
+            self._emit(item)
+            return ("unresolved" if issues else "applied", tuple(issues))
 
 
 class InMemoryErpReceiver:
-    """Persistent-semantics reference receiver used by the M0 test."""
+    """In-memory protocol oracle, not the separate durable ERP emulator."""
 
     def __init__(self) -> None:
         self.messages: dict[str, tuple[str, dict]] = {}
-        self.stream_versions: dict[str, int] = {}
+        self.stream_versions: dict[tuple, int] = {}
+        self.version_messages: dict[tuple, str] = {}
+        self.current_payloads: dict[tuple, dict] = {}
         self.history: list[dict] = []
 
     def receive(self, message: OutboxMessage) -> dict:
-        digest = message.content_digest
+        digest = _digest(message.payload)
+        if (
+            digest != message.content_digest
+            or message.payload.get("message_id") != message.message_id
+            or message.payload.get("result_version") != message.result_version
+        ):
+            raise AckMismatch("Invalid message body or digest.")
+        fields = ("producer_id", "external_system", "external_order_id", "external_item_id")
+        stream = tuple(message.payload.get(key) for key in fields)
+        if any(not isinstance(value, str) or not value.strip() for value in stream):
+            raise AckMismatch("The external stream mapping is missing.")
         existing = self.messages.get(message.message_id)
         if existing is not None:
             if existing[0] != digest:
                 raise AckMismatch("The message ID was reused with a different body.")
             return copy.deepcopy(existing[1]) | {"status": "duplicate"}
-        stream = message.item_id
         current = self.stream_versions.get(stream, 0)
         application_status = "applied" if message.result_version > current else "superseded"
-        if message.result_version <= current and message.result_version == current:
-            for saved in self.history:
-                if saved["item_id"] == stream and saved["result_version"] == message.result_version:
-                    raise IdempotencyConflict("The same stream/version has a different message ID.")
+        version_key = (*stream, message.result_version)
+        if version_key in self.version_messages:
+            raise IdempotencyConflict("The same stream/version has a different message ID.")
         receipt = {
             "message_id": message.message_id,
             "result_version": message.result_version,
             "application_status": application_status,
+            **dict(zip(fields, stream, strict=True)),
+            "content_digest": digest,
+            "received_at": _now().isoformat(),
+            "current_version_at_accept": max(current, message.result_version),
         }
         self.messages[message.message_id] = (digest, receipt)
+        self.version_messages[version_key] = message.message_id
         self.history.append(
             {
-                "item_id": stream,
+                "stream": stream,
                 "result_version": message.result_version,
                 "message_id": message.message_id,
             }
         )
         if application_status == "applied":
             self.stream_versions[stream] = message.result_version
+            self.current_payloads[stream] = copy.deepcopy(message.payload)
         return copy.deepcopy(receipt) | {"status": "accepted"}

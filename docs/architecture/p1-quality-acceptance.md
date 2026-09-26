@@ -1,6 +1,6 @@
 # P1: acceptance slice for quality and release
 
-Статус: **реализован в доменном reference-срезе; PostgreSQL boundary обновлён, полный повторный integration-run ожидает доступный Docker Engine.**
+Статус: **реализован и включён в интегрированное PostgreSQL-ядро P2; полный integration-run выполнен.** Продолжение и актуальные ограничения: [p2-integrated-quality-core.md](p2-integrated-quality-core.md).
 
 ## Приёмочные свойства
 

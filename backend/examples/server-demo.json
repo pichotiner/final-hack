@@ -1,0 +1,30 @@
+{
+  "context": {
+    "work_order_id": "demo-order", "work_order_version": "1",
+    "route_version": "demo-route-1", "assembly_version": "demo-bom-1", "mapping_version": "1",
+    "external_system": "erp-demo", "external_order_id": "demo-order", "external_item_id": "$ITEM",
+    "required_operations": ["$ITEM-cut", "$ITEM-assembly"], "component_ids": ["$ITEM-insert"],
+    "source_authorities": [
+      {"source_id": "erp-source", "event_types": ["item_received"]},
+      {"source_id": "mes-source", "event_types": ["operation_started", "operation_finished"]},
+      {"source_id": "vision-1", "event_types": ["inspection_observed"]}
+    ],
+    "controls": [
+      {"checkpoint_id": "incoming", "source_id": "vision-1", "analyzer_version": "demo-1", "inspection_phase": "incoming", "control_session_id": "$ITEM-incoming"},
+      {"checkpoint_id": "final", "source_id": "vision-1", "analyzer_version": "demo-1", "inspection_phase": "final", "operation_run_id": "$ITEM-assembly", "control_session_id": "$ITEM-final"}
+    ]
+  },
+  "envelope": {
+    "schema_version": "1.0", "item_id": "$ITEM", "item_type_id": "bracket-demo",
+    "line_id": "line-1", "identification_status": "reliable", "time_quality": "synchronized"
+  },
+  "events": [
+    {"event_id": "$ITEM-received", "source_id": "erp-source", "event_type": "item_received", "occurred_at": "2026-09-26T10:00:00Z", "payload": {"work_order_id": "demo-order", "component_ids": ["$ITEM-insert"], "assembly_version": "demo-bom-1"}},
+    {"event_id": "$ITEM-incoming", "source_id": "vision-1", "event_type": "inspection_observed", "occurred_at": "2026-09-26T10:01:00Z", "station_id": "incoming", "payload": {"checkpoint_id": "incoming", "inspection_phase": "incoming", "inspection_result": "no_defect_signs", "observation_quality": "good", "defects": [], "evidence_refs": [], "analyzer_version": "demo-1", "control_session_id": "$ITEM-incoming"}},
+    {"event_id": "$ITEM-cut-start", "source_id": "mes-source", "event_type": "operation_started", "occurred_at": "2026-09-26T10:02:00Z", "operation_run_id": "$ITEM-cut", "station_id": "machining", "operator_id": "operator-1", "equipment_id": "machine-1", "payload": {"operation_type_id": "cut", "shift_id": "day"}},
+    {"event_id": "$ITEM-cut-end", "source_id": "mes-source", "event_type": "operation_finished", "occurred_at": "2026-09-26T10:04:00Z", "operation_run_id": "$ITEM-cut", "station_id": "machining", "operator_id": "operator-1", "equipment_id": "machine-1", "payload": {"operation_type_id": "cut", "shift_id": "day"}},
+    {"event_id": "$ITEM-assembly-start", "source_id": "mes-source", "event_type": "operation_started", "occurred_at": "2026-09-26T10:05:00Z", "operation_run_id": "$ITEM-assembly", "station_id": "assembly", "operator_id": "operator-2", "equipment_id": "machine-2", "payload": {"operation_type_id": "assembly", "shift_id": "day"}},
+    {"event_id": "$ITEM-assembly-end", "source_id": "mes-source", "event_type": "operation_finished", "occurred_at": "2026-09-26T10:07:00Z", "operation_run_id": "$ITEM-assembly", "station_id": "assembly", "operator_id": "operator-2", "equipment_id": "machine-2", "payload": {"operation_type_id": "assembly", "shift_id": "day"}},
+    {"event_id": "$ITEM-final", "source_id": "vision-1", "event_type": "inspection_observed", "occurred_at": "2026-09-26T10:08:00Z", "operation_run_id": "$ITEM-assembly", "station_id": "final", "payload": {"checkpoint_id": "final", "inspection_phase": "final", "inspection_result": "no_defect_signs", "observation_quality": "good", "defects": [], "evidence_refs": [], "analyzer_version": "demo-1", "control_session_id": "$ITEM-final"}}
+  ]
+}

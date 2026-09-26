@@ -54,6 +54,21 @@ def database():
                     f'quality_commands, quality_decisions, quality_outbox TO "{writer_role}"'
                 )
             )
+            connection.execute(
+                text(f'GRANT SELECT, INSERT, UPDATE ON quality_constraints TO "{writer_role}"')
+            )
+            connection.execute(
+                text(f'GRANT SELECT, INSERT, UPDATE ON quality_deliveries TO "{writer_role}"')
+            )
+            connection.execute(
+                text(f'GRANT SELECT, INSERT ON quality_context_versions TO "{writer_role}"')
+            )
+            connection.execute(
+                text(
+                    f"GRANT SELECT, INSERT ON quality_state_versions, "
+                    f'quality_external_streams TO "{writer_role}"'
+                )
+            )
         yield admin, writer, config
     finally:
         writer.dispose()

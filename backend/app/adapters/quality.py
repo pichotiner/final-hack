@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
+from contextvars import ContextVar
 from dataclasses import asdict
 from datetime import datetime
 
@@ -9,15 +11,19 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import Engine
 
+from app.adapters.locks import production_guard
 from app.adapters.postgres import (
     quality_bases,
     quality_commands,
+    quality_constraints,
     quality_decisions,
+    quality_deliveries,
     quality_items,
     quality_outbox,
+    quality_state_versions,
 )
-from app.adapters.traceability import _lock
-from app.domain.errors import IdempotencyConflict, UnknownEntity
+from app.domain.control import decode_context
+from app.domain.errors import IdempotencyConflict, IntegrityViolation, UnknownEntity
 from app.domain.quality import (
     Basis,
     Decision,
@@ -28,6 +34,16 @@ from app.domain.quality import (
     ReworkOperation,
     _digest,
 )
+
+_command_document = ContextVar("command_document", default=None)
+
+
+class CommandResult(dict):
+    """Original result plus transport metadata, never persisted inside the result."""
+
+    def __init__(self, result, *, duplicate):
+        super().__init__(result)
+        self.duplicate = duplicate
 
 
 def _datetime(value: str) -> datetime:
@@ -55,7 +71,15 @@ def _decode(item: dict):
     from app.domain.quality import _Item
 
     observations = {
-        key: Observation(**{**value, "created_at": _datetime(value["created_at"])})
+        key: Observation(
+            **{
+                **value,
+                "created_at": _datetime(value["created_at"]),
+                "occurred_at": _datetime(value["occurred_at"])
+                if value.get("occurred_at")
+                else None,
+            }
+        )
         for key, value in item["observations"].items()
     }
     rework_operations = {
@@ -66,6 +90,8 @@ def _decode(item: dict):
             previous_operation_run_id=value["previous_operation_run_id"],
             status=value["status"],
             created_at=_datetime(value["created_at"]),
+            finished_at=_datetime(value["finished_at"]) if value.get("finished_at") else None,
+            time_quality=value.get("time_quality", "uncertain"),
         )
         for key, value in item["rework_operations"].items()
     }
@@ -79,6 +105,10 @@ def _decode(item: dict):
             review_required=value["review_required"],
             decision_ids=list(value["decision_ids"]),
             resolution_ids=list(value["resolution_ids"]),
+            cause_status=value.get("cause_status", "unresolved"),
+            cause_category=value.get("cause_category", "unknown"),
+            cause_evidence_record_ids=tuple(value.get("cause_evidence_record_ids", ())),
+            cause_limitations=tuple(value.get("cause_limitations", ("cause_not_established",))),
         )
         for key, value in item["nonconformities"].items()
     }
@@ -93,6 +123,12 @@ def _decode(item: dict):
             nonconformity_ids=tuple(value["nonconformity_ids"]),
             blockers=tuple(value["blockers"]),
             created_at=_datetime(value["created_at"]),
+            context_snapshot=value.get("context_snapshot", {}),
+            evidence_record_ids=tuple(value.get("evidence_record_ids", ())),
+            decision_ids=tuple(value.get("decision_ids", ())),
+            analysis_snapshot=value.get("analysis_snapshot", {}),
+            processor_version=value.get("processor_version", "quality-v1"),
+            control_assessments=tuple(value.get("control_assessments", ())),
         )
         for key, value in item["bases"].items()
     }
@@ -112,6 +148,12 @@ def _decode(item: dict):
             observation_ids=tuple(value["observation_ids"]),
             created_at=_datetime(value["created_at"]),
             rework_operation_id=value["rework_operation_id"],
+            cause_status=value.get("cause_status", "unresolved"),
+            cause_category=value.get("cause_category", "unknown"),
+            cause_evidence_record_ids=tuple(value.get("cause_evidence_record_ids", ())),
+            operation_run_id=value.get("operation_run_id"),
+            operator_id=value.get("operator_id"),
+            action_record_id=value.get("action_record_id"),
         )
 
     def message(value):
@@ -148,11 +190,27 @@ def _decode(item: dict):
         review_required=item["review_required"],
         disposition_review_required=item.get("disposition_review_required", False),
         initial_cycle_id=item.get("initial_cycle_id", "cycle-1"),
+        context=decode_context(item.get("context")),
+        production_history=item.get("production_history", {}),
+        cycles=item.get(
+            "cycles",
+            {
+                item["cycle_id"]: {
+                    "disposition_id": None,
+                    "operation_run_ids": [],
+                    "required_checkpoints": item["required_checkpoints"],
+                    "control_sessions": {},
+                    "checkpoint_operation_run_ids": {},
+                }
+            },
+        ),
+        evidence_record_ids=item.get("evidence_record_ids", []),
+        scope_constraints=item.get("scope_constraints", {}),
     )
 
 
 class PostgresQualityWorkflow:
-    """Persist ``QualityWorkflow`` commands under the per-item SQL guard."""
+    """Persist commands under the shared DP-01 demonstrator guard."""
 
     def __init__(self, engine: Engine, clock=None) -> None:
         if engine.dialect.name != "postgresql":
@@ -160,27 +218,53 @@ class PostgresQualityWorkflow:
         self.engine = engine
         self.clock = clock
 
-    def open_item(self, item_id: str, **kwargs) -> None:
+    def execute_command(self, method, target_id, payload, *, actor_id, document):
+        token = _command_document.set(document)
+        try:
+            return getattr(self, method)(target_id, actor_id=actor_id, **payload)
+        finally:
+            _command_document.reset(token)
+
+    def open_item(self, item_id: str, *, connection=None, **kwargs) -> None:
         workflow = QualityWorkflow(clock=self.clock) if self.clock else QualityWorkflow()
         workflow.open_item(item_id, **kwargs)
-        with self.engine.begin() as connection:
+        with self.engine.begin() if connection is None else nullcontext(connection) as connection:
+            production_guard(connection)
             if connection.execute(
                 select(quality_items).where(quality_items.c.item_id == item_id)
             ).first():
                 raise ValueError("The item is already open.")
             now = workflow.clock()
+            for constraint in connection.execute(
+                select(quality_constraints).where(quality_constraints.c.is_open.is_(True))
+            ).mappings():
+                workflow._item(item_id).scope_constraints[constraint["constraint_id"]] = constraint[
+                    "state"
+                ]["reason"]
+                workflow._item(item_id).evidence_record_ids.append(constraint["constraint_id"])
+            state = _encode(workflow._items[item_id])
             connection.execute(
                 quality_items.insert().values(
                     item_id=item_id,
                     context_revision=0,
-                    state=_encode(workflow._items[item_id]),
+                    storage_revision=0,
+                    state=state,
                     updated_at=now,
                 )
             )
+            connection.execute(
+                quality_state_versions.insert().values(
+                    item_id=item_id,
+                    storage_revision=0,
+                    context_revision=0,
+                    snapshot=state,
+                    created_at=now,
+                )
+            )
 
-    def _run(self, item_id: str, operation):
-        with self.engine.begin() as connection:
-            _lock(connection, "quality-item", item_id)
+    def _run(self, item_id: str, operation, *, connection=None):
+        with self.engine.begin() if connection is None else nullcontext(connection) as connection:
+            production_guard(connection)
             row = (
                 connection.execute(
                     select(quality_items)
@@ -192,17 +276,48 @@ class PostgresQualityWorkflow:
             )
             if row is None:
                 raise UnknownEntity("Unknown item.")
+            version = (
+                connection.execute(
+                    select(quality_state_versions).where(
+                        quality_state_versions.c.item_id == item_id,
+                        quality_state_versions.c.storage_revision == row["storage_revision"],
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+            if version is None or version["snapshot"] != row["state"]:
+                raise IntegrityViolation(
+                    "The mutable quality projection diverged from its version."
+                )
             workflow = QualityWorkflow(clock=self.clock) if self.clock else QualityWorkflow()
             workflow._items[item_id] = _decode(row["state"])
             result = operation(workflow, connection)
             item = workflow._items[item_id]
             now = workflow.clock()
-            connection.execute(
-                quality_items.update()
-                .where(quality_items.c.item_id == item_id)
-                .values(context_revision=item.context_revision, state=_encode(item), updated_at=now)
-            )
-            self._persist_children(connection, item)
+            state = _encode(item)
+            if state != row["state"]:
+                storage_revision = row["storage_revision"] + 1
+                connection.execute(
+                    quality_items.update()
+                    .where(quality_items.c.item_id == item_id)
+                    .values(
+                        context_revision=item.context_revision,
+                        storage_revision=storage_revision,
+                        state=state,
+                        updated_at=now,
+                    )
+                )
+                connection.execute(
+                    quality_state_versions.insert().values(
+                        item_id=item_id,
+                        storage_revision=storage_revision,
+                        context_revision=item.context_revision,
+                        snapshot=state,
+                        created_at=now,
+                    )
+                )
+                self._persist_children(connection, item)
             return result
 
     def _persist_children(self, connection, item) -> None:
@@ -251,8 +366,22 @@ class PostgresQualityWorkflow:
                 )
                 .on_conflict_do_update(
                     index_elements=[quality_outbox.c.message_id],
-                    set_={"status": message.status, "ack": message.ack},
+                    set_={
+                        "status": message.status,
+                        "ack": message.ack,
+                        "attempts": message.attempts,
+                    },
                 )
+            )
+            connection.execute(
+                insert(quality_deliveries)
+                .values(
+                    message_id=message.message_id,
+                    status=message.status,
+                    attempts=0,
+                    next_attempt_at=message.created_at,
+                )
+                .on_conflict_do_nothing(index_elements=[quality_deliveries.c.message_id])
             )
 
     def _command(
@@ -265,7 +394,8 @@ class PostgresQualityWorkflow:
         payload: dict,
         operation,
     ):
-        digest = _digest(payload)
+        document = _command_document.get()
+        digest = _digest(payload if document is None else document)
 
         def invoke(workflow, connection):
             saved = (
@@ -285,7 +415,7 @@ class PostgresQualityWorkflow:
                     raise IdempotencyConflict(
                         "The idempotency key was used with a different command body."
                     )
-                return saved["result"]
+                return CommandResult(saved["result"], duplicate=True)
             result = operation(workflow)
             connection.execute(
                 quality_commands.insert().values(
@@ -298,7 +428,7 @@ class PostgresQualityWorkflow:
                     created_at=workflow.clock(),
                 )
             )
-            return result
+            return CommandResult(result, duplicate=False)
 
         return self._run(item_id, invoke)
 
@@ -324,7 +454,15 @@ class PostgresQualityWorkflow:
             key: kwargs[key]
             for key in ("action", "reason", "expected_revision", "expected_basis_id")
         }
-        payload["actor_id"] = kwargs["actor_id"]
+        payload.update(
+            actor_id=kwargs["actor_id"],
+            cause_status=kwargs.get("cause_status", "unresolved"),
+            cause_category=kwargs.get("cause_category", "unknown"),
+            cause_evidence_record_ids=tuple(kwargs.get("cause_evidence_record_ids", ())),
+            operation_run_id=kwargs.get("operation_run_id"),
+            operator_id=kwargs.get("operator_id"),
+            action_record_id=kwargs.get("action_record_id"),
+        )
         return self._command(
             item_id,
             kwargs["actor_id"],
@@ -349,6 +487,7 @@ class PostgresQualityWorkflow:
             )
         }
         payload["actor_id"] = kwargs["actor_id"]
+        payload["action"] = "resolve"
         return self._command(
             item_id,
             kwargs["actor_id"],
@@ -357,6 +496,20 @@ class PostgresQualityWorkflow:
             kwargs["idempotency_key"],
             payload,
             lambda workflow: workflow.resolve_nonconformity(nonconformity_id, **kwargs),
+        )
+
+    def reopen_nonconformity(self, nonconformity_id, **kwargs):
+        item_id = self._find_item_id(nonconformity_id)
+        payload = {key: value for key, value in kwargs.items() if key != "idempotency_key"}
+        payload["action"] = "reopen"
+        return self._command(
+            item_id,
+            kwargs["actor_id"],
+            "resolution_decision",
+            nonconformity_id,
+            kwargs["idempotency_key"],
+            payload,
+            lambda workflow: workflow.reopen_nonconformity(nonconformity_id, **kwargs),
         )
 
     def dispose(self, item_id: str, **kwargs):
@@ -390,6 +543,9 @@ class PostgresQualityWorkflow:
             )
         }
         payload["actor_id"] = kwargs["actor_id"]
+        payload["operation_run_ids"] = list(kwargs.get("operation_run_ids", ()))
+        payload["control_sessions"] = kwargs.get("control_sessions", {})
+        payload["checkpoint_operation_run_ids"] = kwargs.get("checkpoint_operation_run_ids", {})
         return self._command(
             item_id,
             kwargs["actor_id"],
@@ -407,19 +563,132 @@ class PostgresQualityWorkflow:
         )
 
     def state(self, item_id: str):
-        return self._run(item_id, lambda workflow, connection: workflow.state(item_id))
+        with self.engine.connect() as connection:
+            row = (
+                connection.execute(select(quality_items).where(quality_items.c.item_id == item_id))
+                .mappings()
+                .one_or_none()
+            )
+            if row is None:
+                raise UnknownEntity("Unknown item.")
+            version = connection.execute(
+                select(quality_state_versions.c.snapshot).where(
+                    quality_state_versions.c.item_id == item_id,
+                    quality_state_versions.c.storage_revision == row["storage_revision"],
+                )
+            ).scalar_one_or_none()
+            if version != row["state"]:
+                raise IntegrityViolation(
+                    "The mutable quality projection diverged from its version."
+                )
+            workflow = QualityWorkflow(clock=self.clock) if self.clock else QualityWorkflow()
+            workflow._items[item_id] = _decode(row["state"])
+            return workflow.state(item_id)
+
+    def set_production_history(self, item_id: str, history: dict, record_ids):
+        return self._run(
+            item_id,
+            lambda workflow, connection: workflow.set_production_history(
+                item_id, history, record_ids
+            ),
+        )
+
+    def get_basis(self, item_id: str, basis_id: str):
+        with self.engine.connect() as connection:
+            basis = connection.execute(
+                select(quality_bases.c.snapshot).where(
+                    quality_bases.c.item_id == item_id, quality_bases.c.basis_id == basis_id
+                )
+            ).scalar_one_or_none()
+            if basis is None:
+                raise UnknownEntity("Unknown basis.")
+            return basis
 
     def analytics(self, item_ids=None):
         with self.engine.connect() as connection:
-            query = select(quality_items)
+            query = self._verified_query()
             if item_ids is not None:
                 query = query.where(quality_items.c.item_id.in_(tuple(item_ids)))
             rows = connection.execute(query).mappings()
             workflow = QualityWorkflow(clock=self.clock) if self.clock else QualityWorkflow()
             for row in rows:
+                self._verify_row(row)
                 item = _decode(row["state"])
                 workflow._items[item.item_id] = item
             return workflow.analytics()
+
+    def list_states(self):
+        with self.engine.connect() as connection:
+            rows = connection.execute(self._verified_query()).mappings()
+            states = []
+            for row in rows:
+                self._verify_row(row)
+                states.append(self._state_from_json(row["state"]))
+            return states
+
+    @staticmethod
+    def _verified_query():
+        return select(
+            quality_items, quality_state_versions.c.snapshot.label("verified_snapshot")
+        ).outerjoin(
+            quality_state_versions,
+            (
+                (quality_state_versions.c.item_id == quality_items.c.item_id)
+                & (quality_state_versions.c.storage_revision == quality_items.c.storage_revision)
+            ),
+        )
+
+    @staticmethod
+    def _verify_row(row):
+        if row["verified_snapshot"] != row["state"]:
+            raise IntegrityViolation("The mutable quality projection diverged from its version.")
+
+    def _state_from_json(self, value):
+        workflow = QualityWorkflow(clock=self.clock) if self.clock else QualityWorkflow()
+        item = _decode(value)
+        workflow._items[item.item_id] = item
+        return workflow.state(item.item_id)
+
+    def find_item_for_nonconformity(self, nonconformity_id):
+        return self._find_item_id(nonconformity_id)
+
+    def find_basis_item(self, basis_id):
+        with self.engine.connect() as connection:
+            row = connection.execute(
+                select(quality_bases.c.item_id).where(quality_bases.c.basis_id == basis_id)
+            ).first()
+        if row is None:
+            raise UnknownEntity("Unknown basis.")
+        return row[0]
+
+    def list_outbox(self):
+        with self.engine.connect() as connection:
+            rows = connection.execute(self._delivery_query()).mappings()
+            return [dict(row) for row in rows]
+
+    @staticmethod
+    def _delivery_query():
+        return select(
+            *[column for column in quality_outbox.c if column.name not in {"status", "attempts"}],
+            quality_deliveries.c.status,
+            quality_deliveries.c.attempts,
+            quality_deliveries.c.last_error,
+            quality_deliveries.c.next_attempt_at,
+            quality_deliveries.c.lease_until,
+        ).join(quality_deliveries)
+
+    def get_outbox(self, message_id):
+        with self.engine.connect() as connection:
+            row = (
+                connection.execute(
+                    self._delivery_query().where(quality_outbox.c.message_id == message_id)
+                )
+                .mappings()
+                .one_or_none()
+            )
+        if row is None:
+            raise UnknownEntity("Unknown outbox message.")
+        return dict(row)
 
     def _find_item_id(self, nonconformity_id: str) -> str:
         with self.engine.connect() as connection:

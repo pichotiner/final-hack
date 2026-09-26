@@ -1,0 +1,152 @@
+{
+  "openapi": "3.1.0",
+  "info": {"title": "EFQA server integration draft", "version": "0.3.0-draft", "description": "Role 1 DP-01 server experiment. Pending role 2 contract review/codegen. Read projections are extensible objects; source payload conditions are additionally enforced by the domain validator."},
+  "security": [{"BearerAuth": []}],
+  "paths": {
+    "/api/v2/events": {"post": {"operationId": "ingest", "x-roles": ["source"], "x-schema": "SourceEvent"}},
+    "/api/v2/imports/production-context": {"post": {"operationId": "import_context", "x-roles": ["integration"], "x-schema": "ContextImport"}},
+    "/api/v2/items": {"get": {"operationId": "items", "x-roles": ["controller", "master", "technologist", "manager", "admin"]}},
+    "/api/v2/items/{item_id}": {"get": {"operationId": "item", "x-roles": ["controller", "master", "technologist", "manager", "admin"]}},
+    "/api/v2/items/{item_id}/timeline": {"get": {"operationId": "timeline", "x-roles": ["controller", "master", "technologist", "manager", "admin"]}},
+    "/api/v2/items/{item_id}/bases": {"post": {"operationId": "create_basis", "x-roles": ["controller", "master"], "x-schema": "BasisRequest"}},
+    "/api/v2/bases/{basis_id}": {"get": {"operationId": "basis", "x-roles": ["controller", "master", "technologist", "manager", "admin"]}},
+    "/api/v2/nonconformities": {"get": {"operationId": "nonconformities", "x-roles": ["controller", "master", "technologist", "manager", "admin"]}},
+    "/api/v2/nonconformities/{nonconformity_id}": {"get": {"operationId": "nonconformity", "x-roles": ["controller", "master", "technologist", "manager", "admin"]}},
+    "/api/v2/nonconformities/{nonconformity_id}/decisions": {"post": {"operationId": "decide_nonconformity", "x-roles": ["controller"], "x-schema": "DefectDecision"}},
+    "/api/v2/nonconformities/{nonconformity_id}/resolutions": {"post": {"operationId": "resolution", "x-roles": ["controller"], "x-schema": "Resolution"}},
+    "/api/v2/items/{item_id}/dispositions": {"post": {"operationId": "dispose", "x-roles": ["controller"], "x-schema": "Disposition"}},
+    "/api/v2/items/{item_id}/control-cycles": {"post": {"operationId": "start_cycle", "x-roles": ["master"], "x-schema": "ControlCycle"}},
+    "/api/v2/analytics": {"get": {"operationId": "analytics", "x-roles": ["controller", "master", "technologist", "manager", "admin"]}},
+    "/api/v2/integrations/deliveries": {"get": {"operationId": "deliveries", "x-roles": ["integration", "admin"]}},
+    "/api/v2/integrations/deliveries/{message_id}/retry": {"post": {"operationId": "retry_delivery", "x-roles": ["integration", "admin"], "x-schema": "Empty"}}
+  },
+  "components": {
+    "securitySchemes": {"BearerAuth": {"type": "http", "scheme": "bearer"}},
+    "schemas": {
+      "Id": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "\\S"},
+      "NullableId": {"anyOf": [{"$ref": "#/components/schemas/Id"}, {"type": "null"}]},
+      "Ids": {"type": "array", "items": {"$ref": "#/components/schemas/Id"}, "uniqueItems": true},
+      "Empty": {"type": "object", "additionalProperties": false},
+      "BasisRequest": {"type": "object", "properties": {"target_id": {"$ref": "#/components/schemas/NullableId"}}, "additionalProperties": false},
+      "Command": {
+        "type": "object",
+        "required": ["reason", "expected_revision", "expected_basis_id", "idempotency_key"],
+        "properties": {
+          "reason": {"$ref": "#/components/schemas/Id"},
+          "expected_revision": {"type": "integer", "minimum": 0},
+          "expected_basis_id": {"$ref": "#/components/schemas/Id"},
+          "idempotency_key": {"$ref": "#/components/schemas/Id"}
+        }
+      },
+      "Disposition": {
+        "allOf": [{"$ref": "#/components/schemas/Command"}],
+        "required": ["action"],
+        "properties": {"action": {"enum": ["released", "rework", "rejected"]}},
+        "unevaluatedProperties": false
+      },
+      "DefectDecision": {
+        "allOf": [{"$ref": "#/components/schemas/Command"}],
+        "required": ["action"],
+        "properties": {
+          "action": {"enum": ["confirm", "reject", "request_check"]},
+          "cause_status": {"enum": ["unresolved", "hypothesis", "established"]},
+          "cause_category": {"enum": ["unknown", "incoming", "equipment", "operator", "other"]},
+          "cause_evidence_record_ids": {"$ref": "#/components/schemas/Ids"},
+          "operation_run_id": {"$ref": "#/components/schemas/NullableId"},
+          "operator_id": {"$ref": "#/components/schemas/NullableId"},
+          "action_record_id": {"$ref": "#/components/schemas/NullableId"}
+        },
+        "unevaluatedProperties": false
+      },
+      "Resolution": {
+        "allOf": [{"$ref": "#/components/schemas/Command"}],
+        "required": ["action"],
+        "properties": {
+          "action": {"enum": ["resolve", "reopen"]},
+          "rework_operation_id": {"$ref": "#/components/schemas/Id"},
+          "previous_operation_run_id": {"$ref": "#/components/schemas/Id"},
+          "observation_ids": {"allOf": [{"$ref": "#/components/schemas/Ids"}], "minItems": 1}
+        },
+        "if": {"properties": {"action": {"const": "resolve"}}},
+        "then": {"required": ["rework_operation_id", "previous_operation_run_id", "observation_ids"]},
+        "else": {"not": {"anyOf": [{"required": ["rework_operation_id"]}, {"required": ["previous_operation_run_id"]}, {"required": ["observation_ids"]}]}},
+        "unevaluatedProperties": false
+      },
+      "ControlCycle": {
+        "allOf": [{"$ref": "#/components/schemas/Command"}],
+        "required": ["operation_run_ids", "control_sessions", "checkpoint_operation_run_ids"],
+        "properties": {
+          "operation_run_ids": {"allOf": [{"$ref": "#/components/schemas/Ids"}], "minItems": 1},
+          "control_sessions": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/Id"}},
+          "checkpoint_operation_run_ids": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/NullableId"}}
+        },
+        "unevaluatedProperties": false
+      },
+      "ControlRequirement": {
+        "type": "object", "additionalProperties": false,
+        "required": ["checkpoint_id", "source_id", "analyzer_version", "inspection_phase", "control_session_id"],
+        "properties": {
+          "checkpoint_id": {"$ref": "#/components/schemas/Id"},
+          "source_id": {"$ref": "#/components/schemas/Id"},
+          "analyzer_version": {"$ref": "#/components/schemas/Id"},
+          "component_id": {"$ref": "#/components/schemas/NullableId"},
+          "region_id": {"$ref": "#/components/schemas/NullableId"},
+          "operation_run_id": {"$ref": "#/components/schemas/NullableId"},
+          "inspection_phase": {"enum": ["incoming", "before_operation", "after_operation", "final"]},
+          "control_session_id": {"$ref": "#/components/schemas/Id"}
+        }
+      },
+      "SourceAuthority": {
+        "type": "object", "additionalProperties": false, "required": ["source_id", "event_types"],
+        "properties": {
+          "source_id": {"$ref": "#/components/schemas/Id"},
+          "event_types": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["item_received", "operation_started", "operation_finished", "operator_action", "machine_state", "inspection_observed"]}},
+          "station_ids": {"$ref": "#/components/schemas/Ids"}
+        }
+      },
+      "ProductionContext": {
+        "type": "object", "additionalProperties": false,
+        "required": ["work_order_id", "work_order_version", "route_version", "assembly_version", "mapping_version", "external_system", "external_order_id", "external_item_id", "required_operations", "controls", "source_authorities", "component_ids"],
+        "properties": {
+          "work_order_id": {"$ref": "#/components/schemas/Id"},
+          "work_order_version": {"$ref": "#/components/schemas/Id"},
+          "route_version": {"$ref": "#/components/schemas/Id"},
+          "assembly_version": {"$ref": "#/components/schemas/Id"},
+          "mapping_version": {"$ref": "#/components/schemas/Id"},
+          "external_system": {"$ref": "#/components/schemas/Id"},
+          "external_order_id": {"$ref": "#/components/schemas/Id"},
+          "external_item_id": {"$ref": "#/components/schemas/Id"},
+          "producer_id": {"$ref": "#/components/schemas/Id"},
+          "rules_version": {"$ref": "#/components/schemas/Id"},
+          "required_operations": {"allOf": [{"$ref": "#/components/schemas/Ids"}], "minItems": 1},
+          "component_ids": {"$ref": "#/components/schemas/Ids"},
+          "controls": {"type": "array", "minItems": 1, "items": {"$ref": "#/components/schemas/ControlRequirement"}},
+          "source_authorities": {"type": "array", "minItems": 1, "items": {"$ref": "#/components/schemas/SourceAuthority"}}
+        }
+      },
+      "ContextImport": {
+        "type": "object", "additionalProperties": false, "required": ["import_id", "item_id", "context"],
+        "properties": {
+          "import_id": {"$ref": "#/components/schemas/Id"},
+          "item_id": {"$ref": "#/components/schemas/Id"},
+          "context": {"$ref": "#/components/schemas/ProductionContext"}
+        }
+      },
+      "SourceEvent": {
+        "type": "object", "required": ["event_id", "event_type", "schema_version", "occurred_at", "source_id", "item_id", "payload"],
+        "properties": {
+          "event_id": {"$ref": "#/components/schemas/Id"},
+          "event_type": {"enum": ["item_received", "operation_started", "operation_finished", "operator_action", "machine_state", "inspection_observed"]},
+          "schema_version": {"const": "1.0"},
+          "occurred_at": {"type": "string"},
+          "source_id": {"$ref": "#/components/schemas/Id"},
+          "item_id": {"$ref": "#/components/schemas/NullableId"},
+          "identification_status": {"enum": ["reliable", "uncertain"]},
+          "time_quality": {"enum": ["synchronized", "uncertain"]},
+          "payload": {"type": "object"}
+        },
+        "not": {"required": ["received_at"]}
+      }
+    }
+  }
+}

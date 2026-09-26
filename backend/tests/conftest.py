@@ -65,6 +65,12 @@ def trace_document():
                 "observation_quality": "good",
                 "defects": [],
             },
+            "operator_action": {"action_type": "mode-confirmed", "details": {}},
+            "machine_state": {
+                "state": "warning",
+                "parameters": {"vibration_mm_s": 8.2},
+                "description": "Synthetic threshold deviation",
+            },
         }
         document = {
             "event_id": event_id,

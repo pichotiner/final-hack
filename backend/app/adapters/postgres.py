@@ -1,4 +1,5 @@
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Column,
     DateTime,
@@ -15,6 +16,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID, insert
 from sqlalchemy.engine import Connection, Engine, RowMapping
 
+from app.adapters.locks import production_guard
+from app.domain.errors import InvalidTransition
 from app.domain.events import (
     EventEnvelope,
     EventType,
@@ -93,6 +96,7 @@ quality_items = Table(
     metadata,
     Column("item_id", String(128), primary_key=True),
     Column("context_revision", Integer, nullable=False),
+    Column("storage_revision", Integer, nullable=False),
     Column("state", JSONB, nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
     CheckConstraint("context_revision >= 0", name="ck_quality_item_revision"),
@@ -153,6 +157,65 @@ quality_outbox = Table(
 Index("ix_quality_bases_item_id", quality_bases.c.item_id)
 Index("ix_quality_decisions_item_id", quality_decisions.c.item_id)
 Index("ix_quality_outbox_item_id", quality_outbox.c.item_id)
+
+quality_deliveries = Table(
+    "quality_deliveries",
+    metadata,
+    Column("message_id", String(128), ForeignKey("quality_outbox.message_id"), primary_key=True),
+    Column("status", String(32), nullable=False),
+    Column("attempts", Integer, nullable=False),
+    Column("next_attempt_at", DateTime(timezone=True), nullable=False),
+    Column("lease_until", DateTime(timezone=True)),
+    Column("lease_token", String(128)),
+    Column("last_error", String(128)),
+    CheckConstraint("attempts >= 0", name="ck_quality_delivery_attempts"),
+)
+
+quality_constraints = Table(
+    "quality_constraints",
+    metadata,
+    Column("constraint_id", String(128), primary_key=True),
+    Column("is_open", Boolean, nullable=False),
+    Column("state", JSONB, nullable=False),
+)
+
+quality_context_versions = Table(
+    "quality_context_versions",
+    metadata,
+    Column("import_id", String(128), primary_key=True),
+    Column("item_id", String(128), nullable=False),
+    Column("content_digest", String(64), nullable=False),
+    Column("snapshot", JSONB, nullable=False),
+    Column("actor_id", String(128), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+quality_external_streams = Table(
+    "quality_external_streams",
+    metadata,
+    Column("item_id", String(128), primary_key=True),
+    Column("producer_id", String(128), nullable=False),
+    Column("external_system", String(128), nullable=False),
+    Column("external_order_id", String(128), nullable=False),
+    Column("external_item_id", String(128), nullable=False),
+    UniqueConstraint(
+        "producer_id",
+        "external_system",
+        "external_order_id",
+        "external_item_id",
+        name="uq_quality_external_stream",
+    ),
+)
+
+quality_state_versions = Table(
+    "quality_state_versions",
+    metadata,
+    Column("item_id", String(128), primary_key=True),
+    Column("storage_revision", Integer, primary_key=True),
+    Column("context_revision", Integer, nullable=False),
+    Column("snapshot", JSONB, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
 
 
 def _values(event: StoredEvent) -> dict:
@@ -222,6 +285,16 @@ class PostgresEventJournal:
         # A separate SELECT sees the winner under READ COMMITTED after waiting.
         # Never emit an accepted receipt until the transaction has committed.
         with self.engine.begin() as connection:
+            production_guard(connection)
+            if (
+                connection.scalar(
+                    select(quality_items.c.item_id).where(
+                        quality_items.c.item_id == event.metadata.envelope.item_id
+                    )
+                )
+                is not None
+            ):
+                raise InvalidTransition("Use the production journal for quality-managed items.")
             return self._append(connection, event)
 
     def _append(self, connection: Connection, event: StoredEvent) -> tuple[StoredEvent, bool]:
