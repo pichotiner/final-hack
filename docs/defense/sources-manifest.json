@@ -1,0 +1,234 @@
+{
+  "baseline": "53c6f7b",
+  "source_count": 57,
+  "sources": [
+    {
+      "path": "docs/defense/system-explained.md",
+      "sha256": "9f3f9fe887c033cbc92695222a7dc56c4ddd49f97b9e7b843605635ef3ebc546"
+    },
+    {
+      "path": "improvements.md",
+      "sha256": "6b5993295ad6aaf7a1134feca28921e53fd5b22bd36acaa84c26ab3df8460444"
+    },
+    {
+      "path": "docs/architecture/decision-protocol.md",
+      "sha256": "44847770d8de07134aab5523ba05edcabd09f07d4dc51709792bdf4b0c57fb1e"
+    },
+    {
+      "path": "docs/architecture/p6-acceptance-review.md",
+      "sha256": "db4f7b1d341bf6e45fea595a5e6010243962d68eadd5278e30d75d269657427d"
+    },
+    {
+      "path": "docs/architecture/early-warning-design.md",
+      "sha256": "535a492174af9a9849094c31409b6131b0e527afbbf251c4745e1895a9d3576a"
+    },
+    {
+      "path": "docs/research/early-warning-findings.md",
+      "sha256": "d59207b991fb85f89952146632e9be5831ecc2fa0bbcc311b27a5645fdc7e43b"
+    },
+    {
+      "path": "docs/architecture/early-warning-demo.md",
+      "sha256": "2281ee284b3408e86ce041374a8466b482ff1667d4acf1e19497edc82f09dd66"
+    },
+    {
+      "path": "docs/adr/001-core-architecture.md",
+      "sha256": "50c3655817396e5589fa5e0fff661af5e9305552e9411257bb3ebc47cd53e65c"
+    },
+    {
+      "path": "docs/ai-prompts.md",
+      "sha256": "f1c360f7c1db6df049762019bfaec42a08b863c0791d108080f0fdf6b4b0b66f"
+    },
+    {
+      "path": "docs/architecture/camera-ai-design.md",
+      "sha256": "203b6812c24fddd03217bff99497c258ec39677170c9eee8c6c5733bd94034ed"
+    },
+    {
+      "path": "docs/architecture/edge-deployment.md",
+      "sha256": "f1185de1d99d6a7185290d9061e6e2c50de9658fed237ae7faed113e9694a3fc"
+    },
+    {
+      "path": "docs/architecture/engineering-defense.md",
+      "sha256": "570c45423bd03b9ff5081098178ff667247dbd10cd53b41b4b8938cb5efd4177"
+    },
+    {
+      "path": "docs/architecture/enterprise-pilot.md",
+      "sha256": "8fd75cb18156c628f34979d5a9f27a3f09b161230a94d646b9517b3b94e50ebd"
+    },
+    {
+      "path": "docs/architecture/evidence-graph.md",
+      "sha256": "4135bbb2d48f0a812ef95e9d66a6303e67ee0ca320102ffc2cb7c6882b3ed44f"
+    },
+    {
+      "path": "docs/architecture/evidence-model.md",
+      "sha256": "16de6801ce558fa60112df12b4fb8acafaa183041e600d75e0188fffbc5a031c"
+    },
+    {
+      "path": "docs/architecture/impact-experiment.md",
+      "sha256": "8ebf4dda780096bd7bd636170d028beaee3a3a55da5207d511515e09340cdadb"
+    },
+    {
+      "path": "docs/architecture/impact-review-cases.md",
+      "sha256": "e79c111a550051a0d8b76edc831daebbfe955828223684f94199884e5b203613"
+    },
+    {
+      "path": "docs/architecture/p0-quality-slice.md",
+      "sha256": "b199771c529c5d09091c5b83d0074b47f565824828908ea1a4af5cab93622807"
+    },
+    {
+      "path": "docs/architecture/p1-quality-acceptance.md",
+      "sha256": "698f107f4e00ce7ff577919197701818cda169ad22cbc10ef13dab2295e1cbac"
+    },
+    {
+      "path": "docs/architecture/p2-integrated-quality-core.md",
+      "sha256": "f2b4e0abbc9ea3d46daa09b638183553218480623f3621d60c6d5b9f5d405813"
+    },
+    {
+      "path": "docs/architecture/p3-server-integration.md",
+      "sha256": "cd12a3e1876056f0241aa0fade655a4e4fe28487a7ce80957a315c81ded4cb48"
+    },
+    {
+      "path": "docs/architecture/p4-erp-import.md",
+      "sha256": "6bb0528a728dc82f0e6cb01689d01da81d4e6d2eb014b29ec57f6fe993d3363a"
+    },
+    {
+      "path": "docs/architecture/p5-shared-integration.md",
+      "sha256": "672bcc9c3a386606d316c6ddd083b3b6c5f8b26b4d36b799a746841783876812"
+    },
+    {
+      "path": "docs/architecture/role1-post-merge-review.md",
+      "sha256": "876e1df15f38034e200237efcce6e07b89369eb561e58bb7d70f0826945efc67"
+    },
+    {
+      "path": "docs/architecture/role1-pr6-review.md",
+      "sha256": "b4576747233ad3bf40f5ef58a8a481d79acfa27c6b7379afc86f3ef869a8d17a"
+    },
+    {
+      "path": "docs/architecture/role1-response-to-role2-review.md",
+      "sha256": "578207596f8eced53eb845b2a9feac72e24e4f2b7a106a8d9ee886855640183f"
+    },
+    {
+      "path": "docs/architecture/role2-core-review.md",
+      "sha256": "2a623f4b1ac7ab94260f5397fd28a886db7a943693de8223936073f9f197e095"
+    },
+    {
+      "path": "docs/architecture/role2-m0-demo.md",
+      "sha256": "4988ff0d5aa7ad5b3849ee13ae4d6234091188242aafbb04701e0f93949b8ae5"
+    },
+    {
+      "path": "docs/architecture/role2-p5-acceptance.md",
+      "sha256": "93b8bc529e01e54bd739d4b733dda5e934d50d42c2f6a2b7a2fc9d88027cc177"
+    },
+    {
+      "path": "docs/architecture/role2-p5-handoff.md",
+      "sha256": "919ee6a12378a46f6085d61137f492a820fcd4b37b32c59fbbe0e8fce576c629"
+    },
+    {
+      "path": "docs/architecture/role2-p5-review-results.md",
+      "sha256": "80e59361c190d87347e7e919206079537ac6509bcfea0ff81cb63f7c61ce8ca2"
+    },
+    {
+      "path": "docs/architecture/role2-production-readiness.md",
+      "sha256": "b4eab282d1ff1619ec94ad1692343a2d2f7e91721809adbb4ee2e8aa8d50a946"
+    },
+    {
+      "path": "docs/architecture/role2-response-to-role1-decisions.md",
+      "sha256": "57f21be2ca9a2cbc2b5de89b46f6f17365aa6c1f00ee94a2df6884860a7dffdc"
+    },
+    {
+      "path": "docs/architecture/scaling.md",
+      "sha256": "7c58194a7631aaab9c06d02e6427dd931735b6665812cc9883c515902870bee0"
+    },
+    {
+      "path": "docs/architecture/trust-model.md",
+      "sha256": "a395e02d34aede3a48a7e60762029ae36c5d4b2c98d27d4db0d4f7a0a156737b"
+    },
+    {
+      "path": "docs/architecture-design-brief.md",
+      "sha256": "a09bfa2643febfa17c5917854bdfd7278df38508c5a6f6e1e4468f15f761015a"
+    },
+    {
+      "path": "docs/architecture-hypothesis.md",
+      "sha256": "684eef33d5fd75ab24d207b841a15bd58b4d6e98edb1b3f9100fb25045ca3b62"
+    },
+    {
+      "path": "docs/architecture-rework-plan.md",
+      "sha256": "937270f77d714211292c7e2339e01f3710d1079ee119a001b36ff04c7f3269c9"
+    },
+    {
+      "path": "docs/backend-traceability-design.md",
+      "sha256": "3a3da5f8453c02b29d9a1a6817b74654c9c344b944bf058865cb1796d905fbeb"
+    },
+    {
+      "path": "docs/case-holder-qa.md",
+      "sha256": "e5451b14ea4a33cbd8d61f1a9194ae8d02040a51e2658caba43125201d1fed19"
+    },
+    {
+      "path": "docs/contracts.md",
+      "sha256": "8067fa36cffc54790a5d4eca67d3e617d76a81d687099a3048ce6b2c44794e32"
+    },
+    {
+      "path": "docs/demo/README.md",
+      "sha256": "b7e3608cd81fc21e6abea0f742feb0c58b0d6630ea4098fe883f52e2e91eb2d1"
+    },
+    {
+      "path": "docs/demo.md",
+      "sha256": "711aa4e9c1f3c82daec6772c08b8ec1b79ae30bbc71144443915e7d0b37a17ce"
+    },
+    {
+      "path": "docs/failure-research.md",
+      "sha256": "923bafb93f84e2987349d19edd62e14857aa1fbcd79410bb1d5f9275486b8e78"
+    },
+    {
+      "path": "docs/first-slice.md",
+      "sha256": "3cca7c2e5350851d31b91ecea22871df2110c89cb5b1bfb35d7fea8daf294327"
+    },
+    {
+      "path": "docs/organizer-feedback.md",
+      "sha256": "94219c929075412b4e02701149ffbaa6ebf5e1f46265dfc0e795ea02e7f67f77"
+    },
+    {
+      "path": "docs/plan.md",
+      "sha256": "ac64686bbffb9395eda7c8ad5c79630aceb4c4f6710da345519542e6c5d7d553"
+    },
+    {
+      "path": "docs/project-review-2026-09-25.md",
+      "sha256": "c368d947933f76f38a775387ff67531949eed167a21e4e619e1332dbb3fe1f8e"
+    },
+    {
+      "path": "docs/project-review-2026-09-26.md",
+      "sha256": "25babc31066d2cd96de873e8c608c67d7f7406e354869456d36812e04b11bf23"
+    },
+    {
+      "path": "docs/requirements.md",
+      "sha256": "5f39a5b704ca062cb54a4ce2921c2e48e0dc251d8a5ff322c04f398e32fa74b6"
+    },
+    {
+      "path": "docs/research/architecture-sources.md",
+      "sha256": "cc1c08d09af559618ef543b0789d2cce9c8b64afc36f0db4c9ff3176d9695879"
+    },
+    {
+      "path": "docs/role2-dp01-handoff.md",
+      "sha256": "921e1c6316764eaf0b10ea94c7a9440c3e42cca18dfb31e8d73f6150c3539ab3"
+    },
+    {
+      "path": "docs/roles.md",
+      "sha256": "4fb70201d0433de399d779227d0c5d4b7dc2dca9bd49ed7fa6527bc65d3e9bc6"
+    },
+    {
+      "path": "docs/status.md",
+      "sha256": "5694dee9328599a8b3639522cb87fad3f57ec3767b6151d68a260878b64af2c0"
+    },
+    {
+      "path": "docs/system-process.md",
+      "sha256": "a5a9dd0fcd0c4d8792b7d3430fb04cf5dae2e9ac72997164a2e911e583c2768f"
+    },
+    {
+      "path": "docs/technical-decisions.md",
+      "sha256": "52c73cdbd98e03b1061bb133e8ca91d0c460a812c2d37ff6dbf27f33ef9eca75"
+    },
+    {
+      "path": "docs/tracker-feedback.md",
+      "sha256": "a5162deb68683688339af022d0389984be608dc7bf9d85666198e47fc25ee5bc"
+    }
+  ]
+}
