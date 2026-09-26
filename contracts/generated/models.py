@@ -334,6 +334,9 @@ class BasisInput(BaseModel):
     record_id: Id
     source_id: Id
     event_id: Id
+    content_digest: str = Field(..., pattern="^[a-f0-9]{64}$")
+    occurred_at: AwareDatetime
+    received_at: AwareDatetime
     role: Literal["used", "contradictory", "excluded"]
     reason: str | None = None
 
@@ -347,6 +350,17 @@ class CheckpointAssessment(BaseModel):
     issues: list[str]
 
 
+class AnalyzerVersion(BaseModel):
+    record_id: Id
+    version: NullableId
+
+
+class Contradiction(BaseModel):
+    checkpoint_id: Id
+    record_ids: list[Id] = Field(..., min_length=2)
+    reason: str = Field(..., min_length=1)
+
+
 class Basis(BaseModel):
     basis_id: Id
     item_id: Id
@@ -358,6 +372,14 @@ class Basis(BaseModel):
     pinned_versions: dict[str, str | None] = Field(
         ...,
         description="Named work_order, route, design/factual composition, mapping, links, rules, processor, analyzer/recipe versions; unknown explicitly null.",
+    )
+    analyzer_versions: list[AnalyzerVersion]
+    contradictions: list[Contradiction]
+    excluded_inputs: list[BasisInput]
+    previous_decisions: list[Decision]
+    impact: dict[str, Any] = Field(
+        ...,
+        description="Versioned policy and membership paths. Not physical causal paths.",
     )
     decision_ids: list[Id]
     completeness: list[CheckpointAssessment]
@@ -442,6 +464,27 @@ class Error(BaseModel):
 class ErrorResponse(BaseModel):
     request_id: str
     error: Error
+
+
+class Membership(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    assertion_id: Id
+    component_id: Id
+    assembly_id: Id
+    state: Literal["current", "historical", "superseded"]
+
+
+class CompositionSnapshot(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    snapshot_id: Id
+    owner_id: Id
+    proof_id: NullableId
+    items: list[Id] = Field(..., min_length=1)
+    memberships: list[Membership]
 
 
 class WorkOrder(BaseModel):

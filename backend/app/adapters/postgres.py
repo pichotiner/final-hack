@@ -154,6 +154,13 @@ Index("ix_quality_bases_item_id", quality_bases.c.item_id)
 Index("ix_quality_decisions_item_id", quality_decisions.c.item_id)
 Index("ix_quality_outbox_item_id", quality_outbox.c.item_id)
 
+unified_state = Table(
+    "unified_state",
+    metadata,
+    Column("namespace", String(128), primary_key=True),
+    Column("state", JSONB, nullable=False),
+)
+
 
 def _values(event: StoredEvent) -> dict:
     meta, envelope, protection = event.metadata, event.metadata.envelope, event.protection

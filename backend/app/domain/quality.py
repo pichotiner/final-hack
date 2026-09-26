@@ -58,6 +58,12 @@ class Observation:
     source_event_id: str | None
     created_at: datetime
     replaces_observation_id: str | None = None
+    source_id: str = "trusted-reference-source"
+    component_id: str | None = None
+    region_id: str | None = None
+    analyzer_version: str | None = None
+    record_id: str | None = None
+    identification_status: str = "reliable"
 
 
 @dataclass(frozen=True)
@@ -81,6 +87,16 @@ class Basis:
     nonconformity_ids: tuple[str, ...]
     blockers: tuple[str, ...]
     created_at: datetime
+    schema_version: str = "2"
+    inputs: tuple[dict, ...] = ()
+    pinned_versions: dict = field(default_factory=dict)
+    analyzer_versions: tuple[dict, ...] = ()
+    contradictions: tuple[dict, ...] = ()
+    unknowns: tuple[str, ...] = ()
+    excluded_inputs: tuple[dict, ...] = ()
+    previous_decisions: tuple[dict, ...] = ()
+    completeness: tuple[dict, ...] = ()
+    impact: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -93,6 +109,7 @@ class Nonconformity:
     review_required: bool = False
     decision_ids: list[str] = field(default_factory=list)
     resolution_ids: list[str] = field(default_factory=list)
+    observation_ids: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -110,6 +127,7 @@ class Decision:
     created_at: datetime
     rework_operation_id: str | None = None
     observation_ids: tuple[str, ...] = ()
+    control_cycle_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -147,6 +165,8 @@ class _Item:
     review_required: bool = False
     disposition_review_required: bool = False
     initial_cycle_id: str = "cycle-1"
+    evidence_context: dict = field(default_factory=dict)
+    external_blockers: tuple[str, ...] = ()
 
 
 class QualityWorkflow:
@@ -235,6 +255,12 @@ class QualityWorkflow:
         source_event_id: str | None = None,
         cycle_id: str | None = None,
         replaces_observation_id: str | None = None,
+        source_id: str = "trusted-reference-source",
+        component_id: str | None = None,
+        region_id: str | None = None,
+        analyzer_version: str | None = None,
+        record_id: str | None = None,
+        identification_status: str = "reliable",
     ) -> dict:
         """Attach one trusted observation and create/update its defect candidate."""
         item = self._item(item_id)
@@ -244,10 +270,8 @@ class QualityWorkflow:
             raise ValueError("Unsupported inspection result.")
         if quality not in {"good", "poor", "unknown"}:
             raise ValueError("Unsupported observation quality.")
-        if result == "defect_signs" and (not defect_ref or not defect_type):
-            raise ValueError(
-                "defect_signs requires defect_ref and defect_type in the demonstrator."
-            )
+        if result == "defect_signs" and not defect_type:
+            raise ValueError("defect_signs requires defect_type.")
         if result == "no_defect_signs" and quality in {"poor", "unknown"}:
             effective = "not_assessable"
         else:
@@ -264,6 +288,12 @@ class QualityWorkflow:
                     or saved.defect_type != defect_type
                     or saved.source_event_id != source_event_id
                     or saved.replaces_observation_id != replaces_observation_id
+                    or saved.source_id != source_id
+                    or saved.component_id != component_id
+                    or saved.region_id != region_id
+                    or saved.analyzer_version != analyzer_version
+                    or saved.record_id != record_id
+                    or saved.identification_status != identification_status
                 ):
                     raise IdempotencyConflict("Observation ID was reused with different content.")
                 return {
@@ -296,12 +326,26 @@ class QualityWorkflow:
                 source_event_id=source_event_id,
                 created_at=self.clock(),
                 replaces_observation_id=replaces_observation_id,
+                source_id=source_id,
+                component_id=component_id,
+                region_id=region_id,
+                analyzer_version=analyzer_version,
+                record_id=record_id,
+                identification_status=identification_status,
             )
             item.observations[observation_id] = observation
             if item.dispositions and item.dispositions[-1].action == "released":
                 item.disposition_review_required = True
             if effective == "defect_signs":
-                candidate_key = (item_id, observation.cycle_id, defect_ref or observation_id)
+                # Delivery dedupe is separate. The logical defect key includes provenance
+                # and physical scope, never a wildcard for unknown region/component.
+                candidate_key = (
+                    source_id,
+                    item_id,
+                    component_id,
+                    region_id,
+                    defect_ref or observation_id,
+                )
                 existing = next(
                     (
                         nc
@@ -316,6 +360,7 @@ class QualityWorkflow:
                 elif existing.decision_ids:
                     existing.review_required = True
                     item.review_required = True
+                (existing if existing is not None else nc).observation_ids.append(observation_id)
             item.context_revision += 1
             self._emit(item)
             return {
@@ -328,6 +373,20 @@ class QualityWorkflow:
     def create_basis(self, item_id: str, target_id: str | None = None) -> dict:
         item = self._item(item_id)
         with self._lock:
+            context = copy.deepcopy(item.evidence_context)
+            unknowns = list(context.get("unknowns", []))
+            if not context.get("inputs"):
+                unknowns.append("raw_provenance_not_supplied_reference_slice")
+            for version in ("route", "factual_composition", "design_composition"):
+                if not context.get("pinned_versions", {}).get(version):
+                    unknowns.append(f"{version}_version_unknown")
+            excluded = [entry for entry in context.get("inputs", []) if entry["role"] == "excluded"]
+            previous = [
+                self._decision_view(value)
+                for value in sorted(
+                    [*item.decisions, *item.dispositions], key=lambda entry: entry.created_at
+                )
+            ]
             basis = Basis(
                 basis_id=str(uuid4()),
                 item_id=item_id,
@@ -338,6 +397,15 @@ class QualityWorkflow:
                 nonconformity_ids=tuple(item.nonconformities),
                 blockers=self._blockers(item),
                 created_at=self.clock(),
+                inputs=tuple(context.get("inputs", [])),
+                pinned_versions=context.get("pinned_versions", {}),
+                analyzer_versions=tuple(context.get("analyzer_versions", [])),
+                contradictions=tuple(context.get("contradictions", [])),
+                unknowns=tuple(dict.fromkeys(unknowns)),
+                excluded_inputs=tuple(excluded),
+                previous_decisions=tuple(previous),
+                completeness=tuple(context.get("completeness", [])),
+                impact=context.get("impact", {}),
             )
             item.bases[basis.basis_id] = basis
             return self._basis_view(basis)
@@ -465,6 +533,7 @@ class QualityWorkflow:
                 context_revision=item.context_revision,
                 supersedes_id=old,
                 created_at=self.clock(),
+                control_cycle_id=item.cycle_id,
             )
             item.decisions.append(decision)
             nc.decision_ids.append(decision.decision_id)
@@ -538,8 +607,7 @@ class QualityWorkflow:
             defect_checkpoints = {
                 value.checkpoint_id
                 for value in item.observations.values()
-                if value.defect_ref == nc.candidate_key[-1]
-                and value.cycle_id == nc.candidate_key[1]
+                if value.observation_id in nc.observation_ids
             }
             if any(
                 value.cycle_id != item.cycle_id
@@ -571,6 +639,7 @@ class QualityWorkflow:
                 created_at=self.clock(),
                 rework_operation_id=rework_operation_id,
                 observation_ids=observation_ids,
+                control_cycle_id=item.cycle_id,
             )
             item.decisions.append(decision)
             nc.resolution_ids.append(decision.decision_id)
@@ -630,6 +699,7 @@ class QualityWorkflow:
                 context_revision=item.context_revision,
                 supersedes_id=item.dispositions[-1].decision_id if item.dispositions else None,
                 created_at=self.clock(),
+                control_cycle_id=item.cycle_id,
             )
             item.dispositions.append(decision)
             self._emit(item)
@@ -789,7 +859,7 @@ class QualityWorkflow:
         item.next_result_version += 1
 
     def _blockers(self, item: _Item) -> tuple[str, ...]:
-        blockers: list[str] = []
+        blockers: list[str] = list(item.external_blockers)
         if not item.route_known:
             blockers.append("route_unknown")
         if (
@@ -842,9 +912,9 @@ class QualityWorkflow:
         return {
             "inspected_items": int(
                 any(
-                    observation.cycle_id == item.cycle_id
-                    and observation.quality == "good"
+                    observation.quality == "good"
                     and observation.effective_result != "not_assessable"
+                    and observation.identification_status == "reliable"
                     for observation in item.observations.values()
                 )
             ),
@@ -859,6 +929,7 @@ class QualityWorkflow:
             ),
             "review_required_items": int(
                 item.review_required
+                or item.disposition_review_required
                 or any(nc.review_required for nc in item.nonconformities.values())
             ),
             "rework_operations": sum(
@@ -894,7 +965,17 @@ class QualityWorkflow:
 
     @staticmethod
     def _basis_view(value: Basis) -> dict:
-        return {**value.__dict__, "created_at": value.created_at.isoformat()}
+        return json.loads(
+            json.dumps(
+                {
+                    **value.__dict__,
+                    "created_at": value.created_at.isoformat(),
+                    "control_cycle_id": value.cycle_id,
+                    "decision_ids": [entry["decision_id"] for entry in value.previous_decisions],
+                    "media_available": False,
+                }
+            )
+        )
 
     @staticmethod
     def _decision_view(value: Decision) -> dict:
@@ -914,11 +995,13 @@ class QualityWorkflow:
 
     @staticmethod
     def _nc_view(value: Nonconformity) -> dict:
-        return {
-            **value.__dict__,
-            "decision_ids": list(value.decision_ids),
-            "resolution_ids": list(value.resolution_ids),
-        }
+        return copy.deepcopy(
+            {
+                **value.__dict__,
+                "decision_ids": list(value.decision_ids),
+                "resolution_ids": list(value.resolution_ids),
+            }
+        )
 
     @staticmethod
     def _outbox_view(value: OutboxMessage) -> dict:

@@ -1,5 +1,99 @@
 {
   "paths": {
+    "/api/v2/imports/work-orders": {
+      "post": {
+        "operationId": "importWorkOrder",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./external-openapi.yaml#/components/schemas/WorkOrder"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {},
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/v2/composition": {
+      "post": {
+        "operationId": "assertComposition",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompositionSnapshot"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {},
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/v2/events/{record_id}": {
+      "get": {
+        "operationId": "getOriginalEvent",
+        "parameters": [
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceEvent"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/v2/integrations/flush": {
+      "post": {
+        "operationId": "flushOutbox",
+        "responses": {
+          "200": {},
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/api/v2/work-orders": {
       "get": {
         "operationId": "listWorkOrders",
@@ -621,6 +715,68 @@
       }
     },
     "schemas": {
+      "CompositionSnapshot": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "snapshot_id",
+          "owner_id",
+          "items",
+          "memberships",
+          "proof_id"
+        ],
+        "properties": {
+          "snapshot_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "owner_id": {
+            "$ref": "#/components/schemas/Id"
+          },
+          "proof_id": {
+            "$ref": "#/components/schemas/NullableId"
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/components/schemas/Id"
+            }
+          },
+          "memberships": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "assertion_id",
+                "component_id",
+                "assembly_id",
+                "state"
+              ],
+              "properties": {
+                "assertion_id": {
+                  "$ref": "#/components/schemas/Id"
+                },
+                "component_id": {
+                  "$ref": "#/components/schemas/Id"
+                },
+                "assembly_id": {
+                  "$ref": "#/components/schemas/Id"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "current",
+                    "historical",
+                    "superseded"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
       "WorkOrder": {
         "type": "object",
         "required": [
@@ -1819,6 +1975,9 @@
           "record_id",
           "source_id",
           "event_id",
+          "content_digest",
+          "occurred_at",
+          "received_at",
           "role",
           "reason"
         ],
@@ -1831,6 +1990,18 @@
           },
           "event_id": {
             "$ref": "#/components/schemas/Id"
+          },
+          "content_digest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "received_at": {
+            "type": "string",
+            "format": "date-time"
           },
           "role": {
             "type": "string",
@@ -1902,6 +2073,11 @@
           "created_at",
           "inputs",
           "pinned_versions",
+          "analyzer_versions",
+          "contradictions",
+          "excluded_inputs",
+          "previous_decisions",
+          "impact",
           "decision_ids",
           "completeness",
           "blockers",
@@ -1942,6 +2118,67 @@
                 "null"
               ]
             }
+          },
+          "analyzer_versions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "record_id",
+                "version"
+              ],
+              "properties": {
+                "record_id": {
+                  "$ref": "#/components/schemas/Id"
+                },
+                "version": {
+                  "$ref": "#/components/schemas/NullableId"
+                }
+              }
+            }
+          },
+          "contradictions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "checkpoint_id",
+                "record_ids",
+                "reason"
+              ],
+              "properties": {
+                "checkpoint_id": {
+                  "$ref": "#/components/schemas/Id"
+                },
+                "record_ids": {
+                  "type": "array",
+                  "minItems": 2,
+                  "items": {
+                    "$ref": "#/components/schemas/Id"
+                  }
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "excluded_inputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BasisInput"
+            }
+          },
+          "previous_decisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Decision"
+            }
+          },
+          "impact": {
+            "type": "object",
+            "additionalProperties": true
           },
           "decision_ids": {
             "type": "array",

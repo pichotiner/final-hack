@@ -54,6 +54,7 @@ def database():
                     f'quality_commands, quality_decisions, quality_outbox TO "{writer_role}"'
                 )
             )
+            connection.execute(text(f'GRANT SELECT, INSERT, UPDATE ON unified_state TO "{writer_role}"'))
         yield admin, writer, config
     finally:
         writer.dispose()

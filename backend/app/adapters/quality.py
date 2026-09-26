@@ -79,6 +79,16 @@ def _decode(item: dict):
             review_required=value["review_required"],
             decision_ids=list(value["decision_ids"]),
             resolution_ids=list(value["resolution_ids"]),
+            observation_ids=list(
+                value.get(
+                    "observation_ids",
+                    [
+                        obs.observation_id
+                        for obs in observations.values()
+                        if obs.defect_ref == value["candidate_key"][-1]
+                    ],
+                )
+            ),
         )
         for key, value in item["nonconformities"].items()
     }
@@ -93,6 +103,22 @@ def _decode(item: dict):
             nonconformity_ids=tuple(value["nonconformity_ids"]),
             blockers=tuple(value["blockers"]),
             created_at=_datetime(value["created_at"]),
+            **{
+                name: value[name]
+                for name in (
+                    "schema_version",
+                    "inputs",
+                    "pinned_versions",
+                    "analyzer_versions",
+                    "contradictions",
+                    "unknowns",
+                    "excluded_inputs",
+                    "previous_decisions",
+                    "completeness",
+                    "impact",
+                )
+                if name in value
+            },
         )
         for key, value in item["bases"].items()
     }
@@ -112,6 +138,7 @@ def _decode(item: dict):
             observation_ids=tuple(value["observation_ids"]),
             created_at=_datetime(value["created_at"]),
             rework_operation_id=value["rework_operation_id"],
+            control_cycle_id=value.get("control_cycle_id"),
         )
 
     def message(value):
@@ -148,6 +175,8 @@ def _decode(item: dict):
         review_required=item["review_required"],
         disposition_review_required=item.get("disposition_review_required", False),
         initial_cycle_id=item.get("initial_cycle_id", "cycle-1"),
+        evidence_context=item.get("evidence_context", {}),
+        external_blockers=tuple(item.get("external_blockers", [])),
     )
 
 
