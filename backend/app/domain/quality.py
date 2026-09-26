@@ -57,6 +57,17 @@ class Observation:
     defect_type: str | None
     source_event_id: str | None
     created_at: datetime
+    replaces_observation_id: str | None = None
+
+
+@dataclass(frozen=True)
+class ReworkOperation:
+    operation_id: str
+    item_id: str
+    cycle_id: str
+    previous_operation_run_id: str
+    status: str
+    created_at: datetime
 
 
 @dataclass(frozen=True)
@@ -124,6 +135,7 @@ class _Item:
     route_known: bool = True
     context_revision: int = 0
     observations: dict[str, Observation] = field(default_factory=dict)
+    rework_operations: dict[str, ReworkOperation] = field(default_factory=dict)
     nonconformities: dict[str, Nonconformity] = field(default_factory=dict)
     bases: dict[str, Basis] = field(default_factory=dict)
     decisions: list[Decision] = field(default_factory=list)
@@ -133,6 +145,8 @@ class _Item:
     release_allowed_now: bool = False
     blockers: tuple[str, ...] = ()
     review_required: bool = False
+    disposition_review_required: bool = False
+    initial_cycle_id: str = "cycle-1"
 
 
 class QualityWorkflow:
@@ -161,7 +175,13 @@ class QualityWorkflow:
         with self._lock:
             if item_id in self._items:
                 raise ValueError("The item is already open.")
-            self._items[item_id] = _Item(item_id, cycle_id, checkpoints, route_known=route_known)
+            self._items[item_id] = _Item(
+                item_id,
+                _id(cycle_id, "cycle_id"),
+                checkpoints,
+                route_known=route_known,
+                initial_cycle_id=cycle_id,
+            )
 
     def start_cycle(
         self,
@@ -188,7 +208,7 @@ class QualityWorkflow:
 
         def apply() -> dict:
             self._check_context(item, expected_revision, expected_basis_id)
-            if item.dispositions and item.dispositions[-1].action != "rework":
+            if not item.dispositions or item.dispositions[-1].action != "rework":
                 raise InvalidTransition("A new cycle requires the latest disposition to be rework.")
             if cycle_id == item.cycle_id:
                 raise InvalidTransition("The new control cycle must have a new ID.")
@@ -214,6 +234,7 @@ class QualityWorkflow:
         defect_type: str | None = None,
         source_event_id: str | None = None,
         cycle_id: str | None = None,
+        replaces_observation_id: str | None = None,
     ) -> dict:
         """Attach one trusted observation and create/update its defect candidate."""
         item = self._item(item_id)
@@ -234,11 +255,34 @@ class QualityWorkflow:
         with self._lock:
             if observation_id in item.observations:
                 saved = item.observations[observation_id]
+                if (
+                    saved.checkpoint_id != checkpoint_id
+                    or saved.cycle_id != (cycle_id or item.cycle_id)
+                    or saved.result != result
+                    or saved.quality != quality
+                    or saved.defect_ref != defect_ref
+                    or saved.defect_type != defect_type
+                    or saved.source_event_id != source_event_id
+                    or saved.replaces_observation_id != replaces_observation_id
+                ):
+                    raise IdempotencyConflict("Observation ID was reused with different content.")
                 return {
                     "status": "duplicate",
                     "observation_id": saved.observation_id,
                     "context_revision": item.context_revision,
                 }
+            if replaces_observation_id is not None:
+                replaced = item.observations.get(replaces_observation_id)
+                if (
+                    replaced is None
+                    or replaced.cycle_id != (cycle_id or item.cycle_id)
+                    or replaced.checkpoint_id != checkpoint_id
+                    or replaced.effective_result != "not_assessable"
+                ):
+                    raise InvalidTransition(
+                        "Replacement must refer to a not-assessable control in the same "
+                        "checkpoint and cycle."
+                    )
             observation = Observation(
                 observation_id=observation_id,
                 item_id=item_id,
@@ -251,8 +295,11 @@ class QualityWorkflow:
                 defect_type=defect_type,
                 source_event_id=source_event_id,
                 created_at=self.clock(),
+                replaces_observation_id=replaces_observation_id,
             )
             item.observations[observation_id] = observation
+            if item.dispositions and item.dispositions[-1].action == "released":
+                item.disposition_review_required = True
             if effective == "defect_signs":
                 candidate_key = (item_id, observation.cycle_id, defect_ref or observation_id)
                 existing = next(
@@ -295,6 +342,62 @@ class QualityWorkflow:
             item.bases[basis.basis_id] = basis
             return self._basis_view(basis)
 
+    def record_rework_operation(
+        self,
+        item_id: str,
+        *,
+        operation_id: str,
+        previous_operation_run_id: str,
+        status: str = "completed",
+        cycle_id: str | None = None,
+    ) -> dict:
+        """Record the actual rework operation; disposition alone is not execution."""
+        item = self._item(item_id)
+        operation_id = _id(operation_id, "operation_id")
+        previous_operation_run_id = _id(previous_operation_run_id, "previous_operation_run_id")
+        if status not in {"in_progress", "completed", "invalid"}:
+            raise ValueError("Unsupported rework operation status.")
+        with self._lock:
+            saved = item.rework_operations.get(operation_id)
+            if saved is not None:
+                if (
+                    saved.previous_operation_run_id != previous_operation_run_id
+                    or saved.status != status
+                    or saved.cycle_id != (cycle_id or item.cycle_id)
+                ):
+                    raise InvalidTransition(
+                        "A rework operation ID cannot be reused with different facts."
+                    )
+                return {
+                    "status": "duplicate",
+                    "operation_id": operation_id,
+                    "context_revision": item.context_revision,
+                }
+            if (
+                item.cycle_id == item.initial_cycle_id
+                or not item.dispositions
+                or item.dispositions[-1].action != "rework"
+            ):
+                raise InvalidTransition("A rework operation requires an assigned rework cycle.")
+            if cycle_id is not None and cycle_id != item.cycle_id:
+                raise InvalidTransition("A rework operation must belong to the active cycle.")
+            operation = ReworkOperation(
+                operation_id=operation_id,
+                item_id=item_id,
+                cycle_id=cycle_id or item.cycle_id,
+                previous_operation_run_id=previous_operation_run_id,
+                status=status,
+                created_at=self.clock(),
+            )
+            item.rework_operations[operation_id] = operation
+            item.context_revision += 1
+            self._emit(item)
+            return {
+                "status": "accepted",
+                "operation_id": operation_id,
+                "context_revision": item.context_revision,
+            }
+
     def decide_nonconformity(
         self,
         nonconformity_id: str,
@@ -324,17 +427,32 @@ class QualityWorkflow:
                     "A decision requires a supported action and non-empty reason."
                 )
             if action == "confirm" and nc.status not in {"pending_review", "needs_check"}:
-                raise InvalidTransition("Only a pending nonconformity can be confirmed.")
+                if nc.status != "confirmed" or not nc.review_required:
+                    raise InvalidTransition(
+                        "Only a pending or review-required defect can be confirmed."
+                    )
             if action == "reject" and nc.status == "rejected":
                 raise InvalidTransition("The nonconformity is already rejected.")
-            old = item.decisions[-1].decision_id if item.decisions else None
+            old = nc.decision_ids[-1] if nc.decision_ids else None
             item.context_revision += 1
+            was_resolved = nc.resolution_status == "resolved"
             nc.status = {
                 "confirm": "confirmed",
                 "reject": "rejected",
                 "request_check": "needs_check",
             }[action]
-            nc.resolution_status = "open" if action == "confirm" else "not_applicable"
+            nc.resolution_status = (
+                "resolved"
+                if action == "confirm" and was_resolved
+                else "open"
+                if action == "confirm"
+                else "not_applicable"
+            )
+            if action != "confirm" or not was_resolved:
+                nc.review_required = False
+            item.review_required = any(
+                value.review_required for value in item.nonconformities.values()
+            )
             decision = Decision(
                 decision_id=str(uuid4()),
                 command_type="nonconformity_decision",
@@ -398,6 +516,16 @@ class QualityWorkflow:
                 raise InvalidTransition(
                     "Resolution requires a completed rework linked to the prior run."
                 )
+            operation = item.rework_operations.get(rework_operation_id)
+            if (
+                operation is None
+                or operation.status != "completed"
+                or operation.previous_operation_run_id != previous_operation_run_id
+                or operation.cycle_id != item.cycle_id
+            ):
+                raise InvalidTransition(
+                    "Resolution requires the registered completed rework operation for this cycle."
+                )
             observations = [item.observations.get(value) for value in observation_ids]
             if not observations or any(value is None for value in observations):
                 raise InvalidTransition("Resolution requires existing repeat-control observations.")
@@ -407,9 +535,28 @@ class QualityWorkflow:
                 if value
             ):
                 raise InvalidTransition("Resolution requires a good repeat control.")
+            defect_checkpoints = {
+                value.checkpoint_id
+                for value in item.observations.values()
+                if value.defect_ref == nc.candidate_key[-1]
+                and value.cycle_id == nc.candidate_key[1]
+            }
+            if any(
+                value.cycle_id != item.cycle_id
+                or value.checkpoint_id not in defect_checkpoints
+                or value.created_at < operation.created_at
+                for value in observations
+                if value
+            ):
+                raise InvalidTransition(
+                    "Repeat control must follow rework on the defect checkpoint in this cycle."
+                )
             item.context_revision += 1
             nc.resolution_status = "resolved"
             nc.review_required = False
+            item.review_required = any(
+                value.review_required for value in item.nonconformities.values()
+            )
             decision = Decision(
                 decision_id=str(uuid4()),
                 command_type="resolution_decision",
@@ -464,8 +611,12 @@ class QualityWorkflow:
             if action not in {"released", "rework", "rejected"} or not reason.strip():
                 raise InvalidTransition("Unsupported disposition or empty reason.")
             blockers = self._blockers(item)
-            if action == "released" and blockers:
+            if action == "released" and tuple(
+                blocker for blocker in blockers if blocker != "disposition_review_required"
+            ):
                 raise ReleaseBlocked(blockers)
+            if action == "released":
+                item.disposition_review_required = False
             item.context_revision += 1
             decision = Decision(
                 decision_id=str(uuid4()),
@@ -522,12 +673,17 @@ class QualityWorkflow:
             return {
                 "item_id": item_id,
                 "cycle_id": item.cycle_id,
+                "required_checkpoints": item.required_checkpoints,
                 "context_revision": item.context_revision,
                 "release_allowed_now": not blockers,
                 "blockers": blockers,
                 "review_required": item.review_required,
+                "disposition_review_required": item.disposition_review_required,
                 "observations": [
                     self._observation_view(value) for value in item.observations.values()
+                ],
+                "rework_operations": [
+                    self._rework_view(value) for value in item.rework_operations.values()
                 ],
                 "nonconformities": [
                     self._nc_view(value) for value in item.nonconformities.values()
@@ -536,6 +692,18 @@ class QualityWorkflow:
                 "outbox": [self._outbox_view(value) for value in item.outbox.values()],
                 "disposition": item.dispositions[-1].action if item.dispositions else "pending",
             }
+
+    def analytics(self, item_ids: Iterable[str] | None = None) -> dict:
+        """Current counts on one explicit cohort; each item contributes at most one."""
+        with self._lock:
+            ids = tuple(dict.fromkeys(item_ids if item_ids is not None else self._items))
+            items = [self._item(item_id) for item_id in ids]
+            fields = self._kpi(items[0]) if items else self._kpi(_Item("", "", ()))
+            counts = {key: 0 for key in fields}
+            for item in items:
+                for key, value in self._kpi(item).items():
+                    counts[key] += value
+            return {"item_ids": ids, "items": len(items), "kpi": counts}
 
     def _command(
         self,
@@ -602,6 +770,7 @@ class QualityWorkflow:
             "release_allowed_now": item.release_allowed_now,
             "blockers": list(item.blockers),
             "review_required": item.review_required,
+            "disposition_review_required": item.disposition_review_required,
             "nonconformities": [self._nc_view(value) for value in item.nonconformities.values()],
             "kpi": self._kpi(item),
         }
@@ -623,6 +792,16 @@ class QualityWorkflow:
         blockers: list[str] = []
         if not item.route_known:
             blockers.append("route_unknown")
+        if (
+            item.cycle_id != item.initial_cycle_id
+            and item.dispositions
+            and item.dispositions[-1].action == "rework"
+            and not any(
+                operation.cycle_id == item.cycle_id and operation.status == "completed"
+                for operation in item.rework_operations.values()
+            )
+        ):
+            blockers.append("rework_operation_missing")
         for checkpoint in item.required_checkpoints:
             current = [
                 value
@@ -631,8 +810,20 @@ class QualityWorkflow:
             ]
             if not current:
                 blockers.append(f"missing_checkpoint:{checkpoint}")
-            elif current[-1].effective_result == "not_assessable":
-                blockers.append(f"not_assessable:{checkpoint}")
+            else:
+                effective = {
+                    value.observation_id: value
+                    for value in current
+                    if not any(
+                        successor.replaces_observation_id == value.observation_id
+                        for successor in current
+                    )
+                }
+                if any(value.effective_result == "not_assessable" for value in effective.values()):
+                    blockers.append(f"not_assessable:{checkpoint}")
+                results = {value.effective_result for value in effective.values()}
+                if "no_defect_signs" in results and "defect_signs" in results:
+                    blockers.append(f"disputed_checkpoint:{checkpoint}")
         for nc in item.nonconformities.values():
             if nc.status in {"pending_review", "needs_check"}:
                 blockers.append(f"nonconformity:{nc.nonconformity_id}:{nc.status}")
@@ -642,11 +833,22 @@ class QualityWorkflow:
                 blockers.append(f"review_required:{nc.nonconformity_id}")
         if item.review_required:
             blockers.append("context_review_required")
+        if item.disposition_review_required:
+            blockers.append("disposition_review_required")
         return tuple(dict.fromkeys(blockers))
 
     def _kpi(self, item: _Item) -> dict:
         confirmed = [nc for nc in item.nonconformities.values() if nc.status == "confirmed"]
         return {
+            "inspected_items": int(
+                any(
+                    observation.cycle_id == item.cycle_id
+                    and observation.quality == "good"
+                    and observation.effective_result != "not_assessable"
+                    for observation in item.observations.values()
+                )
+            ),
+            "confirmed_nonconforming_items": int(bool(confirmed)),
             "confirmed_defects": len(confirmed),
             "open_confirmed_defects": sum(nc.resolution_status == "open" for nc in confirmed),
             "resolved_confirmed_defects": sum(
@@ -659,7 +861,23 @@ class QualityWorkflow:
                 item.review_required
                 or any(nc.review_required for nc in item.nonconformities.values())
             ),
-            "rework_operations": sum(decision.action == "resolve" for decision in item.decisions),
+            "rework_operations": sum(
+                operation.status == "completed" for operation in item.rework_operations.values()
+            ),
+            "repeat_controls": sum(
+                observation.cycle_id != item.initial_cycle_id
+                or observation.replaces_observation_id is not None
+                for observation in item.observations.values()
+            ),
+            "blocked_items": int(bool(self._blockers(item))),
+            "released_after_reinspection": int(
+                bool(item.dispositions)
+                and item.dispositions[-1].action == "released"
+                and any(
+                    operation.status == "completed" for operation in item.rework_operations.values()
+                )
+                and not self._blockers(item)
+            ),
         }
 
     def _item(self, item_id: str) -> _Item:
@@ -688,6 +906,10 @@ class QualityWorkflow:
 
     @staticmethod
     def _observation_view(value: Observation) -> dict:
+        return {**value.__dict__, "created_at": value.created_at.isoformat()}
+
+    @staticmethod
+    def _rework_view(value: ReworkOperation) -> dict:
         return {**value.__dict__, "created_at": value.created_at.isoformat()}
 
     @staticmethod

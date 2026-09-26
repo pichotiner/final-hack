@@ -5,6 +5,7 @@ import pytest
 from app.domain.errors import (
     AckMismatch,
     IdempotencyConflict,
+    InvalidTransition,
     ReleaseBlocked,
     StaleRevision,
 )
@@ -209,6 +210,13 @@ def test_release_requires_complete_control_and_resolution_then_allows_separate_r
         expected_basis_id=current["basis_id"],
         idempotency_key="cycle-2",
     )
+    workflow.record_rework_operation(
+        "assembly-001",
+        operation_id="rework-run-2",
+        previous_operation_run_id="run-1",
+        status="completed",
+        cycle_id="cycle-2",
+    )
     workflow.record_observation(
         "assembly-001",
         observation_id="incoming-2",
@@ -249,12 +257,17 @@ def test_release_requires_complete_control_and_resolution_then_allows_separate_r
     assert released["action"] == "released"
     assert state["release_allowed_now"] is True
     assert state["kpi"] == {
+        "inspected_items": 1,
+        "confirmed_nonconforming_items": 1,
         "confirmed_defects": 1,
         "open_confirmed_defects": 0,
         "resolved_confirmed_defects": 1,
         "open_nonconforming_items": 0,
         "review_required_items": 0,
         "rework_operations": 1,
+        "repeat_controls": 2,
+        "blocked_items": 0,
+        "released_after_reinspection": 1,
     }
 
 
@@ -313,3 +326,137 @@ def test_erp_receiver_keeps_newer_version_when_delivery_is_reordered():
     assert receiver.receive(oldest)["application_status"] == "superseded"
     assert receiver.stream_versions["assembly-001"] == newest.result_version
     assert receiver.receive(newest)["status"] == "duplicate"
+
+
+def test_late_evidence_after_release_preserves_history_but_blocks_current_release():
+    workflow = opened_workflow()
+    workflow.record_observation(
+        "assembly-001",
+        observation_id="incoming-1",
+        checkpoint_id="incoming",
+        result="no_defect_signs",
+    )
+    workflow.record_observation(
+        "assembly-001",
+        observation_id="final-1",
+        checkpoint_id="final",
+        result="no_defect_signs",
+    )
+    current = basis(workflow)
+    workflow.dispose(
+        "assembly-001",
+        action="released",
+        reason="complete clean control",
+        actor_id="inspector-1",
+        expected_revision=current["context_revision"],
+        expected_basis_id=current["basis_id"],
+        idempotency_key="release-1",
+    )
+    workflow.record_observation(
+        "assembly-001",
+        observation_id="late-defect",
+        checkpoint_id="final",
+        result="defect_signs",
+        defect_ref="mark-001",
+        defect_type="surface-mark",
+    )
+    state = workflow.state("assembly-001")
+    assert state["disposition"] == "released"
+    assert state["release_allowed_now"] is False
+    assert any("nonconformity" in blocker for blocker in state["blockers"])
+    assert "disputed_checkpoint:final" in state["blockers"]
+    assert state["kpi"]["confirmed_defects"] == 0
+
+
+def test_not_assessable_checkpoint_blocks_until_replaced_by_good_control():
+    workflow = QualityWorkflow(Clock())
+    workflow.open_item("assembly-002", required_checkpoints=("final",))
+    workflow.record_observation(
+        "assembly-002",
+        observation_id="poor-final",
+        checkpoint_id="final",
+        result="no_defect_signs",
+        quality="poor",
+    )
+    blocked = workflow.state("assembly-002")
+    assert blocked["release_allowed_now"] is False
+    assert "not_assessable:final" in blocked["blockers"]
+    workflow.record_observation(
+        "assembly-002",
+        observation_id="good-final",
+        checkpoint_id="final",
+        result="no_defect_signs",
+        quality="good",
+        replaces_observation_id="poor-final",
+    )
+    assert workflow.state("assembly-002")["release_allowed_now"] is True
+
+
+def test_analytics_counts_each_item_once_and_does_not_double_count_duplicates():
+    workflow = QualityWorkflow(Clock())
+    workflow.open_item("assembly-001", required_checkpoints=("final",))
+    workflow.open_item("assembly-002", required_checkpoints=("final",))
+    for item_id in ("assembly-001", "assembly-002"):
+        workflow.record_observation(
+            item_id,
+            observation_id=f"{item_id}-final",
+            checkpoint_id="final",
+            result="no_defect_signs",
+        )
+    workflow.record_observation(
+        "assembly-001",
+        observation_id="assembly-001-final",
+        checkpoint_id="final",
+        result="no_defect_signs",
+    )
+    result = workflow.analytics(("assembly-001", "assembly-001", "assembly-002"))
+    assert result["items"] == 2
+    assert result["kpi"]["inspected_items"] == 2
+    assert result["kpi"]["blocked_items"] == 0
+
+
+def test_resolve_without_completed_rework_rolls_back_and_keeps_defect_open():
+    workflow = opened_workflow()
+    workflow.record_observation(
+        "assembly-001",
+        observation_id="incoming-1",
+        checkpoint_id="incoming",
+        result="no_defect_signs",
+    )
+    workflow.record_observation(
+        "assembly-001",
+        observation_id="defect-1",
+        checkpoint_id="final",
+        result="defect_signs",
+        defect_ref="mark-001",
+        defect_type="surface-mark",
+    )
+    nc = workflow.state("assembly-001")["nonconformities"][0]["nonconformity_id"]
+    current = basis(workflow, target_id=nc)
+    workflow.decide_nonconformity(
+        nc,
+        action="confirm",
+        reason="visible mark",
+        actor_id="inspector-1",
+        expected_revision=current["context_revision"],
+        expected_basis_id=current["basis_id"],
+        idempotency_key="confirm-1",
+    )
+    current = basis(workflow, target_id=nc)
+    before = workflow.state("assembly-001")
+    with pytest.raises(InvalidTransition):
+        workflow.resolve_nonconformity(
+            nc,
+            reason="no registered rework",
+            actor_id="inspector-1",
+            expected_revision=current["context_revision"],
+            expected_basis_id=current["basis_id"],
+            idempotency_key="resolve-1",
+            rework_operation_id="missing-rework",
+            previous_operation_run_id="run-1",
+            observation_ids=("defect-1",),
+        )
+    after = workflow.state("assembly-001")
+    assert after["context_revision"] == before["context_revision"]
+    assert after["kpi"]["open_confirmed_defects"] == 1
+    assert after["kpi"]["rework_operations"] == 0

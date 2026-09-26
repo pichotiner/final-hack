@@ -25,6 +25,7 @@ from app.domain.quality import (
     Observation,
     OutboxMessage,
     QualityWorkflow,
+    ReworkOperation,
     _digest,
 )
 
@@ -56,6 +57,17 @@ def _decode(item: dict):
     observations = {
         key: Observation(**{**value, "created_at": _datetime(value["created_at"])})
         for key, value in item["observations"].items()
+    }
+    rework_operations = {
+        key: ReworkOperation(
+            operation_id=value["operation_id"],
+            item_id=value["item_id"],
+            cycle_id=value["cycle_id"],
+            previous_operation_run_id=value["previous_operation_run_id"],
+            status=value["status"],
+            created_at=_datetime(value["created_at"]),
+        )
+        for key, value in item["rework_operations"].items()
     }
     nonconformities = {
         key: Nonconformity(
@@ -124,6 +136,7 @@ def _decode(item: dict):
         route_known=item["route_known"],
         context_revision=item["context_revision"],
         observations=observations,
+        rework_operations=rework_operations,
         nonconformities=nonconformities,
         bases=bases,
         decisions=[decision(value) for value in item["decisions"]],
@@ -133,6 +146,8 @@ def _decode(item: dict):
         release_allowed_now=item["release_allowed_now"],
         blockers=tuple(item["blockers"]),
         review_required=item["review_required"],
+        disposition_review_required=item.get("disposition_review_required", False),
+        initial_cycle_id=item.get("initial_cycle_id", "cycle-1"),
     )
 
 
@@ -292,6 +307,12 @@ class PostgresQualityWorkflow:
             item_id, lambda workflow, connection: workflow.record_observation(item_id, **kwargs)
         )
 
+    def record_rework_operation(self, item_id: str, **kwargs):
+        return self._run(
+            item_id,
+            lambda workflow, connection: workflow.record_rework_operation(item_id, **kwargs),
+        )
+
     def create_basis(self, item_id: str, target_id: str | None = None):
         return self._run(
             item_id, lambda workflow, connection: workflow.create_basis(item_id, target_id)
@@ -355,6 +376,9 @@ class PostgresQualityWorkflow:
         )
 
     def start_cycle(self, item_id: str, **kwargs):
+        if kwargs.get("required_checkpoints") is None:
+            current = self.state(item_id)
+            kwargs = {**kwargs, "required_checkpoints": current["required_checkpoints"]}
         payload = {
             key: kwargs[key]
             for key in (
@@ -384,6 +408,18 @@ class PostgresQualityWorkflow:
 
     def state(self, item_id: str):
         return self._run(item_id, lambda workflow, connection: workflow.state(item_id))
+
+    def analytics(self, item_ids=None):
+        with self.engine.connect() as connection:
+            query = select(quality_items)
+            if item_ids is not None:
+                query = query.where(quality_items.c.item_id.in_(tuple(item_ids)))
+            rows = connection.execute(query).mappings()
+            workflow = QualityWorkflow(clock=self.clock) if self.clock else QualityWorkflow()
+            for row in rows:
+                item = _decode(row["state"])
+                workflow._items[item.item_id] = item
+            return workflow.analytics()
 
     def _find_item_id(self, nonconformity_id: str) -> str:
         with self.engine.connect() as connection:

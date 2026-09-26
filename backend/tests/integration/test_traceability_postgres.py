@@ -372,3 +372,98 @@ def test_quality_workflow_persists_basis_decision_and_idempotent_outbox(trace):
             )
             == 3
         )
+
+
+def test_quality_workflow_persists_completed_rework_and_release_kpi(trace):
+    admin, writer, _, _, _, _ = trace
+    workflow = PostgresQualityWorkflow(writer)
+    item_id = f"release-{uuid4().hex}"
+    workflow.open_item(item_id, required_checkpoints=("final",))
+    workflow.record_observation(
+        item_id,
+        observation_id="defect-1",
+        checkpoint_id="final",
+        result="defect_signs",
+        defect_ref="mark-001",
+        defect_type="surface-mark",
+    )
+    nonconformity_id = workflow.state(item_id)["nonconformities"][0]["nonconformity_id"]
+    current = workflow.create_basis(item_id, target_id=nonconformity_id)
+    workflow.decide_nonconformity(
+        nonconformity_id,
+        action="confirm",
+        reason="visible mark",
+        actor_id="inspector-1",
+        expected_revision=current["context_revision"],
+        expected_basis_id=current["basis_id"],
+        idempotency_key="confirm-1",
+    )
+    current = workflow.create_basis(item_id)
+    workflow.dispose(
+        item_id,
+        action="rework",
+        reason="replace marked part",
+        actor_id="inspector-1",
+        expected_revision=current["context_revision"],
+        expected_basis_id=current["basis_id"],
+        idempotency_key="rework-1",
+    )
+    current = workflow.create_basis(item_id)
+    workflow.start_cycle(
+        item_id,
+        cycle_id="cycle-2",
+        actor_id="master-1",
+        reason="assigned rework",
+        expected_revision=current["context_revision"],
+        expected_basis_id=current["basis_id"],
+        idempotency_key="cycle-2",
+    )
+    workflow.record_rework_operation(
+        item_id,
+        operation_id="rework-run-2",
+        previous_operation_run_id="run-1",
+        cycle_id="cycle-2",
+    )
+    workflow.record_observation(
+        item_id,
+        observation_id="final-2",
+        checkpoint_id="final",
+        result="no_defect_signs",
+        cycle_id="cycle-2",
+    )
+    current = workflow.create_basis(item_id, target_id=nonconformity_id)
+    workflow.resolve_nonconformity(
+        nonconformity_id,
+        reason="repeat control passed",
+        actor_id="inspector-1",
+        expected_revision=current["context_revision"],
+        expected_basis_id=current["basis_id"],
+        idempotency_key="resolve-1",
+        rework_operation_id="rework-run-2",
+        previous_operation_run_id="run-1",
+        observation_ids=("final-2",),
+    )
+    current = workflow.create_basis(item_id)
+    workflow.dispose(
+        item_id,
+        action="released",
+        reason="all checks passed after rework",
+        actor_id="inspector-1",
+        expected_revision=current["context_revision"],
+        expected_basis_id=current["basis_id"],
+        idempotency_key="release-1",
+    )
+    state = PostgresQualityWorkflow(writer).state(item_id)
+    assert state["release_allowed_now"] is True
+    assert state["kpi"]["confirmed_defects"] == 1
+    assert state["kpi"]["resolved_confirmed_defects"] == 1
+    assert state["kpi"]["rework_operations"] == 1
+    with admin.connect() as connection:
+        assert (
+            connection.scalar(
+                select(func.count())
+                .select_from(quality_outbox)
+                .where(quality_outbox.c.item_id == item_id)
+            )
+            == state["context_revision"]
+        )
