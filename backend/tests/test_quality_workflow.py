@@ -117,7 +117,9 @@ def test_bad_quality_never_covers_control_even_after_reject(quality, result):
     assert "not_assessable:final" in rig.state()["blockers"]
     with pytest.raises(ReleaseBlocked):
         rig.command("dispose", action="released")
-    rig.observe("replacement", replaces_observation_id="bad")
+    rig.observe(
+        "replacement", replaces_observation_id="bad", occurred_at=T0 + timedelta(minutes=11)
+    )
     assert rig.state()["release_allowed_now"]
 
 

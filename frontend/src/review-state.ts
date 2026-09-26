@@ -1,7 +1,7 @@
 import type { Basis, Item } from "./api";
 
 export type Pinned = { item: Item; basis: Basis; targetId: string | null };
-export type SavedCommand = { path: string; body: string };
+export type SavedCommand = { path: string; body: string; actorId?: string };
 export type ReviewState = {
   pinned: Pinned | null;
   latestRevision: number | null;

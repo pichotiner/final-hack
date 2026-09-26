@@ -244,7 +244,7 @@ def main():
                 "python": platform.python_version(),
                 "os": platform.platform(),
                 "node": subprocess.check_output(["node", "--version"], text=True).strip(),
-                "contract": "0.4.0",
+                "contract": "0.5.0",
                 "synthetic": True,
                 "entry": "scripts/acceptance_demo.py",
             },

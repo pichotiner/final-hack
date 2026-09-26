@@ -23,13 +23,23 @@ def _required(environment, name):
 @dataclass(frozen=True)
 class ProductionSettings:
     database_url: str
-    event_key_file: Path
-    event_key_id: str
-    event_key_version: int
+    event_key_file: Path | None
+    event_key_id: str | None
+    event_key_version: int | None
     identities_file: Path
+    keyring_file: Path | None = None
 
     @classmethod
     def from_environment(cls, environment):
+        if environment.get("QC_KEYRING_FILE"):
+            return cls(
+                _required(environment, "DATABASE_URL"),
+                None,
+                None,
+                None,
+                Path(_required(environment, "QC_IDENTITIES_FILE")),
+                Path(_required(environment, "QC_KEYRING_FILE")),
+            )
         try:
             version = int(_required(environment, "QC_EVENT_KEY_VERSION"))
         except ValueError as error:
@@ -65,6 +75,42 @@ def _read_key(path):
     return key
 
 
+def load_protector(settings):
+    """Load the active key and retained versions before opening any DB connection."""
+    if settings.keyring_file is None:
+        return AesGcmProtector(
+            {
+                (settings.event_key_id, settings.event_key_version): _read_key(
+                    settings.event_key_file
+                )
+            },
+            active_key=(settings.event_key_id, settings.event_key_version),
+        )
+    try:
+        path = settings.keyring_file
+        document = json.loads(path.read_text(encoding="utf-8"))
+        active = (document["active"]["key_id"], document["active"]["version"])
+        keys = {}
+        for entry in document["keys"]:
+            identity = (entry["key_id"], entry["version"])
+            if (
+                not isinstance(identity[0], str)
+                or not identity[0].strip()
+                or type(identity[1]) is not int
+                or identity[1] < 1
+                or identity in keys
+            ):
+                raise ValueError
+            keys[identity] = _read_key(path.parent / entry["file"])
+        if type(active[1]) is not int or active not in keys:
+            raise ValueError
+        return AesGcmProtector(keys, active_key=active)
+    except (OSError, UnicodeError, ValueError, TypeError, KeyError) as error:
+        raise ValueError(
+            "The event keyring is invalid or a retained key is unavailable."
+        ) from error
+
+
 def _read_identities(path):
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
@@ -95,13 +141,9 @@ def _read_identities(path):
 
 
 def build_runtime(settings):
-    key = _read_key(settings.event_key_file)
+    protector = load_protector(settings)
     identities = _read_identities(settings.identities_file)
     engine = create_engine(settings.database_url, hide_parameters=True)
-    protector = AesGcmProtector(
-        {(settings.event_key_id, settings.event_key_version): key},
-        active_key=(settings.event_key_id, settings.event_key_version),
-    )
     journal = PostgresProductionJournal(engine, protector)
     return ProductionRuntime(
         engine,

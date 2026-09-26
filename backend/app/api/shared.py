@@ -11,10 +11,11 @@ from starlette.concurrency import run_in_threadpool
 from app.adapters.json_events import JsonEventCodec
 from app.adapters.shared_contract import document, validate
 from app.adapters.shared_views import SharedViews
+from app.api.pagination import limit, timeline_page
 from app.api.server import _body, _page, _token
 from app.application.outbox import OutboxDeliveryWorker
 from app.application.source_validation import validate_source_payload
-from app.domain.errors import UnknownEntity
+from app.domain.errors import InvalidEvent, UnknownEntity
 
 READ_ROLES = {"controller", "master", "technologist", "manager", "admin"}
 ROLES = {
@@ -23,6 +24,9 @@ ROLES = {
     "resolveNonconformity": {"controller"},
     "decideDisposition": {"controller"},
     "startControlCycle": {"master"},
+    "recoverControl": {"controller"},
+    "resolveScope": {"controller"},
+    "getSession": READ_ROLES | {"integration", "source"},
     "getDeliveries": {"integration", "admin"},
     "retryDelivery": {"integration", "admin"},
 }
@@ -37,6 +41,13 @@ def install(app, service):
     def dispatch(operation, request, token, body, raw):
         ids = request.path_params
         quality = service.quality
+        if operation == "getSession":
+            principal = service.identities.authenticate(token)
+            return {"actor_id": principal.actor_id, "roles": sorted(principal.roles)}, 200
+        if operation == "listScopeConstraints":
+            return views.scope_review(), 200
+        if operation == "resolveScope":
+            return service.resolve_scope(token, ids["id"], **body), 200
         if operation == "ingestEvent":
             result = service.ingest(token, raw)
             return result, 200 if result.status == "duplicate" else 201
@@ -44,6 +55,7 @@ def install(app, service):
             "decideNonconformity": "decide_nonconformity",
             "decideDisposition": "dispose",
             "startControlCycle": "start_cycle",
+            "recoverControl": "recover_control",
         }
         if operation in methods or operation == "resolveNonconformity":
             command = dict(body)
@@ -62,7 +74,7 @@ def install(app, service):
                 command["action"] = command.pop("disposition")
             elif operation == "startControlCycle":
                 command["operation_run_ids"] = command.pop("planned_operation_run_ids")
-            elif command["action"] == "resolve":
+            elif operation == "resolveNonconformity" and command["action"] == "resolve":
                 command["rework_operation_id"] = command.pop("rework_operation_run_id")
             method = methods.get(operation) or (
                 "resolve_nonconformity" if body["action"] == "resolve" else "reopen_nonconformity"
@@ -74,11 +86,12 @@ def install(app, service):
         if operation == "getItem":
             return views.item(ids["item_id"]), 200
         if operation == "listItems":
-            return _page(
-                request,
-                [views.item(state["item_id"]) for state in quality.list_states()],
-                "item_id",
-            ), 200
+            size = limit(request)
+            ids_page = quality.item_ids_page(request.query_params.get("cursor", ""), size)
+            return {
+                "items": [views.item(key) for key in ids_page[:size]],
+                "next_cursor": ids_page[size - 1] if len(ids_page) > size else None,
+            }, 200
         if operation == "getNonconformity":
             item = views.item(quality.find_item_for_nonconformity(ids["id"]))
             return next(card for card in item["nonconformities"] if card["id"] == ids["id"]), 200
@@ -94,10 +107,26 @@ def install(app, service):
         if operation == "getTimeline":
             quality.state(ids["item_id"])
             history = service.journal.get_history(ids["item_id"])
-            return _page(request, history["timeline"] if history else [], "record_id"), 200
+            return timeline_page(
+                request, ids["item_id"], history["timeline"] if history else []
+            ), 200
         if operation == "getAnalytics":
-            result = quality.analytics(request.query_params.getlist("item_id") or None)
+            dates = {}
+            try:
+                for name in ("since", "until"):
+                    value = request.query_params.get(name)
+                    dates[name] = datetime.fromisoformat(value) if value else None
+                    if dates[name] is not None and dates[name].utcoffset() is None:
+                        raise ValueError
+                if dates["since"] and dates["until"] and dates["since"] >= dates["until"]:
+                    raise ValueError
+            except ValueError as error:
+                raise InvalidEvent(
+                    "Analytics requires an ordered timezone-aware interval."
+                ) from error
+            result = quality.analytics(request.query_params.getlist("item_id") or None, **dates)
             return {
+                **{k: v for k, v in result.items() if k not in {"items", "kpi"}},
                 "item_ids": result["item_ids"],
                 "counts": result["kpi"],
                 "computed_at": datetime.now(UTC).isoformat(),

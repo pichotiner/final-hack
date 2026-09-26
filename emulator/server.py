@@ -172,7 +172,7 @@ class Receiver:
         }
 
 
-def make_server(receiver: Receiver, token: str, *, port=0, allow_faults=False):
+def make_server(receiver: Receiver, token: str, *, port=0, allow_faults=False, host="127.0.0.1"):
     if not token:
         raise ValueError("Set a nonempty emulator token outside git")
 
@@ -279,12 +279,14 @@ def make_server(receiver: Receiver, token: str, *, port=0, allow_faults=False):
         def log_message(self, *_):
             pass
 
-    return ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    return ThreadingHTTPServer((host, port), Handler)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=8090)
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--token-file", type=Path)
     parser.add_argument("--state", type=Path, default=Path("emulator/state-v2-0.4.sqlite"))
     parser.add_argument("--orders", type=Path, default=Path("data/v2/work-orders.json"))
     parser.add_argument("--allow-faults", action="store_true")
@@ -295,11 +297,12 @@ def main():
     receiver = Receiver(args.state, orders)
     with make_server(
         receiver,
-        os.environ.get("ERP_EMULATOR_TOKEN", ""),
+        args.token_file.read_text("utf-8").strip() if args.token_file else os.environ.get("ERP_EMULATOR_TOKEN", ""),
         port=args.port,
+        host=args.host,
         allow_faults=args.allow_faults,
     ) as server:
-        print(f"Synthetic ERP v2: http://127.0.0.1:{server.server_port}", flush=True)
+        print(f"Synthetic ERP v2: http://{args.host}:{server.server_port}", flush=True)
         server.serve_forever()
 
 

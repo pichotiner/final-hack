@@ -114,7 +114,7 @@ async function chapter(page, name) {
 async function openItem(page, item, token = tokens.controller) {
   await page.getByLabel("Bearer token").fill(token);
   await page.getByRole("button", { name: "Загрузить изделия" }).click();
-  await page.getByLabel("Изделие").selectOption(item);
+  await page.getByLabel(/^Изделие/).selectOption(item);
   await page.getByRole("heading", { name: new RegExp(item.replaceAll("-", "\\-")) }).waitFor();
 }
 async function uiCommand(page, item, action, { target = "", reason = "P6 synthetic independent acceptance", fields = {} } = {}) {
@@ -124,7 +124,11 @@ async function uiCommand(page, item, action, { target = "", reason = "P6 synthet
   await page.getByText("B = ", { exact: false }).first().waitFor();
   await page.getByLabel("Действие").selectOption(action);
   await page.locator("textarea").first().fill(reason);
-  for (const [label, value] of Object.entries(fields)) await page.getByLabel(label).fill(value);
+  for (const [label, value] of Object.entries(fields)) {
+    const field = page.getByLabel(new RegExp(`^${label}`));
+    if (await field.evaluate(e => e.tagName === "SELECT")) await field.selectOption(value);
+    else await field.fill(value);
+  }
   const path = action === "cycle" ? "/control-cycles" : action === "resolve" ? "/resolutions" : action === "confirm" ? "/decisions" : "/dispositions";
   const result = page.waitForResponse(response => response.url().includes(path) && response.request().method() === "POST");
   await page.getByRole("button", { name: "Отправить отдельную команду" }).click();
@@ -190,23 +194,22 @@ try {
     const b1 = await basis(card.basis_id);
     const confirm = await uiCommand(page, item, "confirm", { target: card.id });
     const rework = await uiCommand(page, item, "rework");
-    const sessions = Object.fromEntries(["incoming-surface", "after-machining", "final-surface"].map(c => [c, `p6-${c}`]));
-    const bindings = { "incoming-surface": null, "after-machining": "repair-1", "final-surface": "repair-1" };
     await openItem(page, item, tokens.master);
     const cycle = await uiCommand(page, item, "cycle", { fields: {
-      "Run ID доработки / планируемые run через запятую": "repair-1",
-      "ID решения rework": rework.decision_id,
-      "Новые сессии: JSON checkpoint → session": JSON.stringify(sessions),
-      "Операции: JSON checkpoint → run (incoming: null)": JSON.stringify(bindings),
+      "Решение о доработке": rework.decision_id,
+      "Повторяемые операции": "run-assembly-001",
     } });
+    const sessions = cycle.control_sessions;
+    const bindings = cycle.checkpoint_operation_run_ids;
+    const repairRun = bindings["final-surface"];
     assert(cycle.control_cycle_id !== first.control_cycle_id, "new server cycle");
     const beforeRepair = await state(item);
     const premature = await post(`/api/v2/nonconformities/${card.id}/resolutions`, {
-      ...await beforeCommand(item, card.id), action: "resolve", rework_operation_run_id: "repair-1",
+      ...await beforeCommand(item, card.id), action: "resolve", rework_operation_run_id: repairRun,
       previous_operation_run_id: "run-assembly-001", control_record_ids: [b1.completeness[2].record_ids[0]],
     }, tokens.controller, 409);
     assert(premature.error.code && (await state(item)).decisions.length === beforeRepair.decisions.length, "A05 resolve before repair has no effect");
-    await operation(item, "repair-1", "10:20:00", "10:22:00", "assembly", "run-assembly-001");
+    await operation(item, repairRun, "10:20:00", "10:22:00", "assembly", "run-assembly-001");
     const records = [];
     for (const point of ["incoming-surface", "after-machining", "final-surface"]) {
       const { receipt } = await inspection(item, point, "10:23:00", { cycle: cycle.control_cycle_id, session: sessions[point], run: bindings[point] });
@@ -216,9 +219,8 @@ try {
     eq(earlyRelease.error.code, "release_blocked", "A05 release before resolve");
     await openItem(page, item);
     const resolve = await uiCommand(page, item, "resolve", { target: card.id, fields: {
-      "Run ID доработки / планируемые run через запятую": "repair-1",
-      "Предыдущий run": "run-assembly-001",
-      "Raw Record ID повторного контроля": records[2],
+      "Завершённая доработка": repairRun,
+      "Записи повторного контроля": records[2],
     } });
     const release = await uiCommand(page, item, "released");
     await page.getByRole("button", { name: "Обновить доставки и ACK" }).isDisabled();
