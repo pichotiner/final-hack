@@ -22,10 +22,14 @@ export default function App() {
   const [sessions, setSessions] = useState("{}");
   const [bindings, setBindings] = useState("{}");
   const inFlight = useRef(false);
+  const reviewRequest = useRef(0);
   const [oldBasis, setOldBasis] = useState<Basis | null>(null);
   const [oldBasisId, setOldBasisId] = useState("");
   const [newBasis, setNewBasis] = useState<Basis | null>(null);
   const [counts, setCounts] = useState<Record<string, number> | null>(null);
+  const [lineId, setLineId] = useState("line-1");
+  const [line, setLine] = useState<Awaited<ReturnType<typeof api.line>> | null>(null);
+  const [deliveries, setDeliveries] = useState<Awaited<ReturnType<typeof api.deliveries>> | null>(null);
   const locked = review.phase === "sending" || review.phase === "unknown";
   const pinned = review.pinned;
   const stale = pinned !== null && review.latestRevision !== pinned.item.context_revision;
@@ -56,16 +60,28 @@ export default function App() {
   }, [locked]);
 
   async function pin() {
+    const requestId = ++reviewRequest.current;
     try {
       if (reason.trim() && pinned && !window.confirm("Перенести черновик причины на явно обновлённые основания?")) setReason("");
       const item = await api.item(selected, token);
+      if (requestId !== reviewRequest.current) return;
       const card = target ? item.nonconformities.find(x => x.id === target) : null;
       if (target && !card) throw new Error("Карточка не принадлежит выбранному изделию");
       const basis = await api.basis(card ? card.basis_id : item.basis_id, token);
+      if (requestId !== reviewRequest.current) return;
+      if (basis.item_id !== item.item_id || basis.context_revision !== item.context_revision ||
+          basis.control_cycle_id !== item.control_cycle_id || basis.target_id !== (target || null)) {
+        throw new Error("Основание не соответствует полученному контексту. Повторите открытие рассмотрения.");
+      }
       dispatch({ type: "pin", value: { item, basis, targetId: target || null } });
       setLatest(item); setNewBasis(basis);
       setMessage(`Закреплено основание ${basis.basis_id}, ревизия ${basis.context_revision}`);
-    } catch (e) { error(e); }
+    } catch (e) { if (requestId === reviewRequest.current) error(e); }
+  }
+
+  function clearReview() {
+    reviewRequest.current += 1;
+    dispatch({ type: "clear" });
   }
 
   async function transmit(command: SavedCommand) {
@@ -87,6 +103,7 @@ export default function App() {
   }, [review.phase, review.pending]);
 
   function send(command: SavedCommand, retry = false) {
+    reviewRequest.current += 1;
     dispatch(retry ? { type: "retry" } : { type: "prepare", command });
   }
 
@@ -135,13 +152,22 @@ export default function App() {
   const diff = oldBasis && newBasis ? basisDiff(oldBasis, newBasis) : null;
   return <main>
     <header><h1>EFQA · основания решения</h1><p>DP-01 / API v2 · работа с готовыми наблюдениями, отдельное решение ОТК</p></header>
-    <section><label>Bearer token (только память вкладки)<input type="password" value={token} disabled={locked} onChange={e => { setToken(e.target.value); setSelected(""); setLatest(null); setItems([]); dispatch({ type: "clear" }); }} /></label>
+    <section><label>Bearer token (только память вкладки)<input type="password" value={token} disabled={locked} onChange={e => { setToken(e.target.value); setSelected(""); setLatest(null); setItems([]); setLine(null); setDeliveries(null); setCounts(null); clearReview(); }} /></label>
       <button disabled={!token || locked} onClick={() => void refresh()}>Загрузить изделия</button>
-      <label>Изделие<select value={selected} disabled={locked} onChange={e => { setSelected(e.target.value); setLatest(null); setHistory(null); setTarget(""); setOldBasis(null); setNewBasis(null); dispatch({ type: "clear" }); }}><option value="">Выбрать</option>{items.map(x => <option key={x.item_id}>{x.item_id}</option>)}</select></label>
+      <label>Изделие<select value={selected} disabled={locked} onChange={e => { setSelected(e.target.value); setLatest(null); setHistory(null); setTarget(""); setOldBasis(null); setNewBasis(null); clearReview(); }}><option value="">Выбрать</option>{items.map(x => <option key={x.item_id}>{x.item_id}</option>)}</select></label>
       <button disabled={!token} onClick={() => api.analytics(token).then(x => setCounts(x.counts)).catch(error)}>KPI сервера</button>
       {counts && <pre>{JSON.stringify(counts, null, 2)}</pre>}
     </section>
     <p role="status" className="message">{message}</p>
+    <section><h2>Линия и доставка результата</h2>
+      <label>Номер линии<input value={lineId} onChange={e => { setLineId(e.target.value); setLine(null); }} /></label>
+      <button disabled={!token || !lineId.trim()} onClick={() => api.line(lineId.trim(), token).then(setLine).catch(error)}>Состояние линии</button>
+      {line && <div><p>Снимок линии {line.line_id} на {line.computed_at}. Последний приём: {line.source_last_received_at ?? "нет данных"}.</p>
+        <p>Изделий с неразрешёнными связями: {line.unresolved_items}. Активные операции: {line.active_operation_run_ids.join(", ") || "нет по данным сервера"}.</p></div>}
+      <button disabled={!token} onClick={() => api.deliveries(token).then(setDeliveries).catch(error)}>Проверить доставки ERP</button>
+      <p>Доступ к доставкам требует роли integration/admin. Подтверждение ERP не означает физическую доработку или отгрузку.</p>
+      {deliveries && <><pre>{JSON.stringify(deliveries.items, null, 2)}</pre>{deliveries.next_cursor && <p>Показана первая страница; это не полный список доставок.</p>}</>}
+    </section>
     {displayed && <>
       {stale && <p className="warning">Появилась ревизия {review.latestRevision}. Ниже остаётся закреплённая {pinned?.item.context_revision}; данные формы не заменены. Новая команда не отправлена: явно обновите рассмотрение.</p>}
       <section><h2>{displayed.item_id} · контекст {displayed.context_revision}</h2>
@@ -154,9 +180,9 @@ export default function App() {
         {history && <pre>{JSON.stringify(history, null, 2)}</pre>}
       </section>
       <section><h2>Отдельное рассмотрение</h2>
-        <label>Цель<select value={target} disabled={locked || review.phase === "idle" && pinned !== null} onChange={e => setTarget(e.target.value)}><option value="">Решение по изделию / новый цикл</option>{(latest ?? displayed).nonconformities.map(x => <option key={x.id} value={x.id}>Карточка {x.id}</option>)}</select></label>
+        <label>Цель<select value={target} disabled={locked || review.phase === "idle" && pinned !== null} onChange={e => { clearReview(); setTarget(e.target.value); }}><option value="">Решение по изделию / новый цикл</option>{(latest ?? displayed).nonconformities.map(x => <option key={x.id} value={x.id}>Карточка {x.id}</option>)}</select></label>
         <button disabled={locked} onClick={() => void pin()}>Начать / явно обновить рассмотрение</button>
-        <button disabled={locked} onClick={() => dispatch({ type: "clear" })}>Завершить просмотр и сменить цель</button>
+        <button disabled={locked} onClick={clearReview}>Завершить просмотр и сменить цель</button>
         {pinned && <><p>B = {pinned.basis.basis_id}; revision = {pinned.basis.context_revision}; цель {pinned.targetId ?? "изделие"}</p>
           <table><thead><tr><th>Record / признак</th><th>Компонент / область</th><th>Метод</th><th>Результат контроля</th></tr></thead><tbody>{pinned.basis.analysis_snapshot.observations.map(obs => <tr key={obs.observation_id}><td>{obs.record_id} / {obs.defect_index ?? "контроль без признака"}</td><td>{obs.component_id ?? "неизвестно"} / {obs.region_id ?? "неизвестно"}</td><td>{obs.analyzer_version ?? "неизвестно"}</td><td>{obs.result} → {obs.effective_result}</td></tr>)}</tbody></table>
           <details><summary>Полное сохранённое основание B</summary><pre>{JSON.stringify(pinned.basis, null, 2)}</pre></details>

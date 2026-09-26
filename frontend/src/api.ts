@@ -56,6 +56,8 @@ export async function request<T>(path: string, token: string, body?: string): Pr
 }
 
 export const api = {
+  line: (id: string, token: string) => request<components["schemas"]["LineStatus"]>(`/api/v2/lines/${encodeURIComponent(id)}/status`, token),
+  deliveries: (token: string) => request<components["schemas"]["DeliveryPage"]>("/api/v2/integrations/deliveries", token),
   items: (token: string) => request<components["schemas"]["ItemPage"]>("/api/v2/items", token),
   item: (id: string, token: string) => request<Item>(`/api/v2/items/${encodeURIComponent(id)}`, token),
   basis: (id: string, token: string) => request<Basis>(`/api/v2/bases/${encodeURIComponent(id)}`, token),
