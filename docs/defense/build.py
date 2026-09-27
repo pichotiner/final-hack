@@ -1,5 +1,6 @@
-"""Build the offline defense pack from reviewed Markdown and slides.json."""
+"""Build the offline EFQA defense pack and the presentation."""
 
+import argparse
 import hashlib
 import json
 import os
@@ -10,6 +11,9 @@ import markdown
 from bs4 import BeautifulSoup
 from pptx import Presentation
 from pptx.dml.color import RGBColor
+from pptx.enum.shapes import MSO_CONNECTOR, MSO_SHAPE
+from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN
+from pptx.oxml.xmlchemy import OxmlElement
 from pptx.util import Inches, Pt
 from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
@@ -25,19 +29,29 @@ FONT = Path(os.environ.get("EFQA_FONT_DIR", "/usr/share/fonts/truetype/dejavu"))
 pdfmetrics.registerFont(TTFont("DV", str(FONT / "DejaVuSans.ttf")))
 pdfmetrics.registerFont(TTFont("DV-Bold", str(FONT / "DejaVuSans-Bold.ttf")))
 pdfmetrics.registerFontFamily("DV", normal="DV", bold="DV-Bold", italic="DV", boldItalic="DV-Bold")
-NAVY = "142B45"
-BLUE = "176B95"
+
+NAVY = "071522"
+PANEL = "10283B"
+PANEL2 = "12344A"
+MINT = "6AE7D9"
+ORANGE = "FFB454"
+RED = "FF6B6B"
+TEXT = "F3F8FA"
+MUTED = "A5BCC8"
+LINE = "25465A"
 BODY = ParagraphStyle("body", fontName="DV", fontSize=9, leading=13, spaceAfter=6, wordWrap="CJK")
 H1 = ParagraphStyle("heading", parent=BODY, fontName="DV-Bold", fontSize=17, leading=21, spaceBefore=12)
 H2 = ParagraphStyle("sub", parent=H1, fontSize=12, leading=16)
 CODE = ParagraphStyle("code", parent=BODY, fontSize=7, leading=10, leftIndent=8, backColor=colors.HexColor("#f0f3f6"))
 
 
-def text_pdf(c, text, x, top, width, size=18, color=NAVY, bold=False):
-    style = ParagraphStyle("draw", fontName="DV-Bold" if bold else "DV", fontSize=size,
-                           leading=size * 1.3, textColor=colors.HexColor("#" + color))
-    p = Paragraph(escape(text).replace("\n", "<br/>"), style)
-    _, height = p.wrap(width, 1000)
+def text_pdf(c, text, x, top, width, size=18, color=TEXT, bold=False):
+    style = ParagraphStyle(
+        "draw", fontName="DV-Bold" if bold else "DV", fontSize=size,
+        leading=size * 1.22, textColor=colors.HexColor("#" + color), wordWrap="CJK",
+    )
+    p = Paragraph(escape(str(text)).replace("\n", "<br/>"), style)
+    _, height = p.wrap(width, 2000)
     p.drawOn(c, x, top - height)
     return height
 
@@ -48,13 +62,11 @@ def diagram(c, x, y, width):
     w = (width - 4 * gap) / 5
     for i, label in enumerate(labels):
         px = x + i * (w + gap)
-        c.setFillColor(colors.HexColor("#e3eff7"))
-        c.roundRect(px, y, w, 58, 7, fill=1, stroke=0)
-        text_pdf(c, label, px + 7, y + 48, w - 14, size=10)
+        c.setFillColor(colors.HexColor("#e3eff7")); c.roundRect(px, y, w, 58, 7, fill=1, stroke=0)
+        text_pdf(c, label, px + 7, y + 48, w - 14, size=10, color=NAVY)
         if i < 4:
-            c.setStrokeColor(colors.HexColor("#176b95"))
-            c.line(px + w, y + 29, px + w + gap, y + 29)
-    text_pdf(c, "Проектный edge: идентификация → качество данных → локальный буфер → центр", x, y - 15, width, size=10)
+            c.setStrokeColor(colors.HexColor("#176b95")); c.line(px + w, y + 29, px + w + gap, y + 29)
+    text_pdf(c, "Проектный edge: идентификация → качество данных → локальный буфер → центр", x, y - 15, width, size=10, color=NAVY)
 
 
 class Book(SimpleDocTemplate):
@@ -67,18 +79,15 @@ class Book(SimpleDocTemplate):
 
 class Architecture(Flowable):
     def __init__(self):
-        super().__init__()
-        self.width = 500
-        self.height = 120
+        super().__init__(); self.width = 500; self.height = 120
 
     def draw(self):
         diagram(self.canv, 0, 50, self.width)
 
 
 def footer(c, doc):
-    c.setFont("DV", 8)
-    c.setFillColor(colors.HexColor("#567086"))
-    c.drawString(40, 24, "EFQA • теория и архив оснований • срез 26.09.2026")
+    c.setFont("DV", 8); c.setFillColor(colors.HexColor("#567086"))
+    c.drawString(40, 24, "EFQA • теория и архив оснований • срез 27.09.2026")
     c.drawRightString(555, 24, str(doc.page))
 
 
@@ -99,7 +108,6 @@ def source_flow(path):
         elif element.name == "pre":
             result.append(Paragraph(escape(element.get_text()).replace("\n", "<br/>"), CODE))
         else:
-            # Keep visible URLs as well as their human-readable source labels.
             for link in element.find_all("a"):
                 link.append(" [" + link.get("href", "") + "]")
             style = H2 if element.name.startswith("h") else BODY
@@ -117,10 +125,7 @@ def make_book():
     sources = first + archive
     story = [Paragraph("EFQA / Единая книга теории", H1),
              Paragraph("Актуальное объяснение • архитектура • исследования • исторические основания", H2),
-             Paragraph("26 сентября 2026. Срез main@53c6f7b. Сначала читайте раздел 1. "
-                       "С раздела 8 начинается архив: его старые планы и статусы не являются "
-                       "текущими обещаниями. Программные результаты P6 опубликованы ролью №1. "
-                       "Раннее предупреждение EW-01 — проект. Полного промышленного внедрения нет.", BODY),
+             Paragraph("Срез main. Сначала читайте разделы системы и исследования. Архивные планы не являются текущими обещаниями. Полного промышленного внедрения нет.", BODY),
              Architecture(), Paragraph("Навигация", H2)]
     for i, path in enumerate(sources, 1):
         title = path.read_text(encoding="utf-8").splitlines()[0].lstrip("# ")
@@ -134,202 +139,403 @@ def make_book():
     Book(str(OUT / "theory.pdf"), pagesize=(595, 842), leftMargin=40, rightMargin=40,
          topMargin=38, bottomMargin=42, title="EFQA — единая книга теории", author="Команда EFQA").build(
              story, onFirstPage=footer, onLaterPages=footer)
-    manifest = {"baseline": "53c6f7b", "source_count": len(sources), "sources": [
+    manifest = {"baseline": "main", "source_count": len(sources), "sources": [
         {"path": str(p.relative_to(ROOT)), "sha256": hashlib.sha256(p.read_bytes()).hexdigest()} for p in sources]}
     (OUT / "sources-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def pdf_base(c, index, tag, title, total):
+    c.setFillColor(colors.HexColor("#" + NAVY)); c.rect(0, 0, 960, 540, fill=1, stroke=0)
+    c.setFillColor(colors.HexColor("#" + LINE)); c.rect(42, 525, 876, 2, fill=1, stroke=0)
+    c.setFillColor(colors.HexColor("#" + MINT)); c.rect(42, 525, 876 * index / total, 2, fill=1, stroke=0)
+    text_pdf(c, tag, 48, 505, 850, 10, MINT, True)
+    text_pdf(c, title, 48, 470, 850, 27, TEXT, True)
+
+
+def pdf_footer(c, index, total):
+    c.setFont("DV", 8); c.setFillColor(colors.HexColor("#" + MUTED))
+    c.drawString(48, 22, "EFQA  /  Evidence-First Quality Architecture")
+    c.drawRightString(912, 22, f"{index:02d} / {total:02d}")
+
+
+def panel(c, x, y, w, h, fill=PANEL, stroke=LINE, radius=12):
+    c.setFillColor(colors.HexColor("#" + fill)); c.setStrokeColor(colors.HexColor("#" + stroke))
+    c.roundRect(x, y, w, h, radius, fill=1, stroke=1)
+
+
+def circle(c, x, y, r, fill=MINT):
+    c.setFillColor(colors.HexColor("#" + fill)); c.circle(x, y, r, fill=1, stroke=0)
+
+
+def draw_blindspot(c, slide, data, index, total):
+    """Draw this slide once, in points/top-left coordinates, into both formats.
+
+    Explicit line breaks and font metrics guard against overflow. All PowerPoint
+    elements remain editable; the PDF is not used as a slide-sized bitmap.
+    """
+    def block(x, y, width, height, fill, stroke=None, ellipse=False):
+        c.saveState()
+        c.setFillColor(colors.HexColor("#" + fill))
+        if stroke:
+            c.setStrokeColor(colors.HexColor("#" + stroke))
+        c.setLineWidth(1.2)
+        kind = MSO_SHAPE.OVAL if ellipse else MSO_SHAPE.ROUNDED_RECTANGLE
+        if ellipse:
+            c.ellipse(x, 540 - y - height, x + width, 540 - y, fill=1, stroke=bool(stroke))
+        else:
+            c.roundRect(x, 540 - y - height, width, height, 12, fill=1, stroke=bool(stroke))
+        c.restoreState()
+        obj = slide.shapes.add_shape(kind, Pt(x), Pt(y), Pt(width), Pt(height))
+        obj.fill.solid()
+        obj.fill.fore_color.rgb = RGBColor.from_string(fill)
+        if stroke:
+            obj.line.color.rgb = RGBColor.from_string(stroke)
+            obj.line.width = Pt(1.2)
+        else:
+            obj.line.fill.background()
+        if not ellipse:
+            obj.adjustments[0] = 12 / min(width, height)
+        obj._element.spPr.append(OxmlElement("a:effectLst"))
+
+    def label(value, x, y, width, height, size, color=TEXT, bold=False, centered=False):
+        lines = value.split("\n")
+        font = "DV-Bold" if bold else "DV"
+        leading = size * 1.25
+        if any(pdfmetrics.stringWidth(line, font, size) > width - 2 for line in lines):
+            raise ValueError(f"Slide 02 text exceeds width: {value!r}")
+        if len(lines) * leading > height:
+            raise ValueError(f"Slide 02 text exceeds height: {value!r}")
+        c.saveState()
+        c.setFont(font, size)
+        c.setFillColor(colors.HexColor("#" + color))
+        for n, line in enumerate(lines):
+            baseline = 540 - y - size - n * leading
+            if centered:
+                c.drawCentredString(x + width / 2, baseline, line)
+            else:
+                c.drawString(x, baseline, line)
+        c.restoreState()
+        obj = slide.shapes.add_textbox(Pt(x), Pt(y), Pt(width), Pt(height))
+        tf = obj.text_frame
+        tf.word_wrap = False
+        tf.auto_size = MSO_AUTO_SIZE.NONE
+        tf.margin_left = tf.margin_right = tf.margin_top = tf.margin_bottom = 0
+        for n, line in enumerate(lines):
+            p = tf.paragraphs[0] if n == 0 else tf.add_paragraph()
+            p.text = line
+            p.font.name = "DejaVu Sans"
+            p.font.size = Pt(size)
+            p.font.bold = bold
+            p.font.color.rgb = RGBColor.from_string(color)
+            p.alignment = PP_ALIGN.CENTER if centered else PP_ALIGN.LEFT
+            p.line_spacing = Pt(leading)
+            p.space_before = p.space_after = Pt(0)
+
+    def link(x1, y1, x2, y2, color=LINE, weight=2):
+        c.saveState()
+        c.setStrokeColor(colors.HexColor("#" + color))
+        c.setLineWidth(weight)
+        c.line(x1, 540 - y1, x2, 540 - y2)
+        c.restoreState()
+        obj = slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, Pt(x1), Pt(y1), Pt(x2), Pt(y2))
+        obj.line.color.rgb = RGBColor.from_string(color)
+        obj.line.width = Pt(weight)
+        obj._element.spPr.append(OxmlElement("a:effectLst"))
+
+    slide.background.fill.solid()
+    slide.background.fill.fore_color.rgb = RGBColor.from_string(NAVY)
+    c.setFillColor(colors.HexColor("#" + NAVY))
+    c.rect(0, 0, 960, 540, fill=1, stroke=0)
+    link(48, 16, 912, 16, LINE, 1.5)
+    link(48, 16, 48 + 864 * index / total, 16, MINT, 1.5)
+    label(data["tag"], 48, 34, 864, 18, 10, MINT, True)
+    label(data["title"], 48, 67, 864, 53, 38, TEXT, True)
+    label(data["subtitle"], 48, 127, 864, 25, 18, MUTED)
+
+    # One route, but two different levels of knowledge. The amber zone contains
+    # possible origins; the coral zone is the known observation, not a cause.
+    block(48, 190, 518, 194, "191F29", "695333")
+    block(650, 190, 262, 194, "29212B", RED)
+    label(data["origin_label"], 70, 208, 208, 23, 16, ORANGE, True)
+    label(data["origin_status"], 326, 211, 214, 19, 13, ORANGE, True)
+    label(data["detection_label"], 674, 208, 172, 23, 16, RED, True)
+    label(data["detection_status"], 854, 211, 48, 19, 12, RED, True)
+
+    centers = [132, 307, 482]
+    for left, right in zip(centers, centers[1:]):
+        link(left + 26, 278, right - 26, 278, "695333")
+    link(579, 278, 637, 278, MUTED)
+    link(629, 272, 637, 278, MUTED)
+    link(629, 284, 637, 278, MUTED)
+    for center, (number, title, detail) in zip(centers, data["origins"]):
+        block(center - 25, 253, 50, 50, "292A2C", ORANGE, ellipse=True)
+        label(number, center - 25, 266, 50, 23, 16, ORANGE, True, centered=True)
+        label(title, center - 74, 320, 148, 27, 18, TEXT, True, centered=True)
+        label(detail, center - 74, 349, 148, 22, 16, MUTED, centered=True)
+
+    block(753, 250, 56, 56, RED, ellipse=True)
+    label("!", 753, 254, 56, 43, 32, NAVY, True, centered=True)
+    label(data["detection_title"], 662, 320, 238, 26, 17, TEXT, True, centered=True)
+    label(data["detection_detail"], 662, 349, 238, 23, 16, MUTED, centered=True)
+
+    link(48, 422, 48, 480, MINT, 3)
+    label(data["takeaway"], 68, 420, 842, 31, 22, MINT, True)
+    label(data["evidence"], 68, 455, 842, 25, 18, TEXT)
+    label("EFQA / Evidence-First Quality Architecture", 48, 514, 790, 16, 9, MUTED)
+    label(f"{index:02d} / {total:02d}", 864, 514, 48, 16, 9, MUTED)
+
+
 def make_slides():
     slides = json.loads((OUT / "slides.json").read_text(encoding="utf-8"))
-    assert sum(s["seconds"] for s in slides) == 495
-    prs = Presentation()
-    prs.slide_width, prs.slide_height = Inches(13.333), Inches(7.5)
+    total = len(slides)
+    assert total == 11 and sum(s["seconds"] for s in slides) == 420
+    prs = Presentation(); prs.slide_width = Inches(13.333); prs.slide_height = Inches(7.5)
     c = canvas.Canvas(str(OUT / "presentation.pdf"), pagesize=(960, 540))
     c.setTitle("EFQA — доказательный контроль качества")
-    notes = ["# Выступление на 8 минут", "", ("12 слайдов, 495 секунд. Расширенная версия включает сравнение, "
-             "открытые расследования NASA/SpaceX/Роскосмоса и малую оценочную статистику. "
-             "Все отраслевые числа сопровождаются знаменателем и ограничениями."), ""]
+    notes = ["# Выступление EFQA", "", "11 слайдов, 420 секунд. Визуальная версия: короткие тезисы на слайдах, подробности — в заметках докладчика.", ""]
+
+    def ptext(slide, text, x, y, w, h, size=15, color=TEXT, bold=False, align=None):
+        shape = slide.shapes.add_textbox(Inches(x), Inches(y), Inches(w), Inches(h))
+        tf = shape.text_frame; tf.clear(); tf.word_wrap = True
+        tf.margin_left = Inches(.04); tf.margin_right = Inches(.04); tf.margin_top = Inches(.03); tf.margin_bottom = Inches(.02)
+        p = tf.paragraphs[0]; p.text = str(text); p.font.name = "DejaVu Sans"; p.font.size = Pt(size); p.font.bold = bold
+        p.font.color.rgb = RGBColor.from_string(color); p.alignment = align or PP_ALIGN.LEFT
+        return shape
+
+    def shape(slide, kind, x, y, w, h, fill=PANEL, line=LINE, radius=True):
+        sh = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE if radius else MSO_SHAPE.RECTANGLE,
+                                    Inches(x), Inches(y), Inches(w), Inches(h))
+        sh.fill.solid(); sh.fill.fore_color.rgb = RGBColor.from_string(fill)
+        sh.line.color.rgb = RGBColor.from_string(line); sh.line.width = Pt(1)
+        return sh
+
+    def slide_header(slide, index, s):
+        bg = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, prs.slide_width, prs.slide_height)
+        bg.fill.solid(); bg.fill.fore_color.rgb = RGBColor.from_string(NAVY); bg.line.fill.background()
+        bar = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(.5), Inches(.23), Inches(12.3), Inches(.025))
+        bar.fill.solid(); bar.fill.fore_color.rgb = RGBColor.from_string(LINE); bar.line.fill.background()
+        progress = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(.5), Inches(.23), Inches(12.3 * index / total), Inches(.025))
+        progress.fill.solid(); progress.fill.fore_color.rgb = RGBColor.from_string(MINT); progress.line.fill.background()
+        ptext(slide, s["tag"], .65, .38, 12, .25, 9, MINT, True)
+        ptext(slide, s["title"], .65, .68, 12, .85, 24, TEXT, True)
+
+    def pcard(slide, x, y, w, h, kicker, title, body, accent=MINT):
+        shape(slide, "card", x, y, w, h)
+        sh = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(x), Inches(y), Inches(.07), Inches(h))
+        sh.fill.solid(); sh.fill.fore_color.rgb = RGBColor.from_string(accent); sh.line.fill.background()
+        ptext(slide, kicker, x + .22, y + .16, w - .35, .24, 8, accent, True)
+        ptext(slide, title, x + .22, y + .43, w - .35, .42, 14, TEXT, True)
+        ptext(slide, body, x + .22, y + .9, w - .35, h - 1.0, 9.5, MUTED)
+
     elapsed = 0
     for index, s in enumerate(slides, 1):
         slide = prs.slides.add_slide(prs.slide_layouts[6])
-        def box(text, x, y, w, h, size, bold=False, color=NAVY, slide=slide):
-            shape = slide.shapes.add_textbox(Inches(x), Inches(y), Inches(w), Inches(h))
-            tf = shape.text_frame
-            tf.word_wrap = True
-            for n, line in enumerate(text.split("\n")):
-                p = tf.paragraphs[0] if n == 0 else tf.add_paragraph()
-                p.text = line
-                p.font.name, p.font.size, p.font.bold = "DejaVu Sans", Pt(size), bold
-                p.font.color.rgb = RGBColor.from_string(color)
-                p.space_after = Pt(10)
-            return shape
-        layout = s.get("layout", "bullets")
-        dark = layout == "hero"
-        c.setFillColor(colors.HexColor("#0E2238" if dark else "#F7FAFC"))
-        c.rect(0, 0, 960, 540, fill=1, stroke=0)
-        if not dark:
-            c.setFillColor(colors.HexColor("#176B95"))
-            c.rect(0, 528, 960, 12, fill=1, stroke=0)
-        title_color = "FFFFFF" if dark else NAVY
-        tag_color = "7DE0DD" if dark else BLUE
-        text_pdf(c, s["tag"], 42, 504, 865, 12, tag_color, True)
-        text_pdf(c, s["title"], 42, 469, 865, 25, title_color, True)
+        kind = s["kind"]
+        if kind != "blindspot":
+            slide_header(slide, index, s)
+            pdf_base(c, index, s["tag"], s["title"], total)
 
-        def pdf_card(x, y, w, h, kicker, title, body, accent=BLUE, dark_card=False):
-            c.setFillColor(colors.HexColor("#173A55" if dark_card else "#FFFFFF"))
-            c.setStrokeColor(colors.HexColor("#2A607D" if dark_card else "#D9E5EC"))
-            c.roundRect(x, y, w, h, 10, fill=1, stroke=1)
-            c.setFillColor(colors.HexColor("#7DE0DD" if dark_card else "#176B95"))
-            c.roundRect(x, y + h - 7, w, 7, 3, fill=1, stroke=0)
-            text_pdf(c, kicker, x + 14, y + h - 19, w - 28, 11, "7DE0DD" if dark_card else BLUE, True)
-            text_pdf(c, title, x + 14, y + h - 44, w - 28, 15, "FFFFFF" if dark_card else NAVY, True)
-            text_pdf(c, body, x + 14, y + h - 77, w - 28, 10.5, "D9EDF2" if dark_card else "365268")
-
-        def pdf_footer():
-            c.setFillColor(colors.HexColor("#6B8292" if not dark else "#9CC5D2"))
-            c.setFont("DV", 8)
-            c.drawString(42, 24, "EFQA • синтетический демонстратор • отраслевые кейсы — открытые источники")
-            c.drawRightString(916, 24, f"{index}/12")
-
-        if layout == "hero":
-            text_pdf(c, s["subtitle"], 42, 340, 700, 23, "EAF7F7", True)
-            x = 42
-            for chip in s["chips"]:
-                width = 28 + len(chip) * 7.2
-                c.setFillColor(colors.HexColor("#1B4D68"))
-                c.setStrokeColor(colors.HexColor("#4FB8B9"))
-                c.roundRect(x, 115, width, 30, 15, fill=1, stroke=1)
-                text_pdf(c, chip, x + 14, 135, width - 28, 10, "B9F3F0", True)
-                x += width + 12
-            text_pdf(c, "Evidence-First Quality Architecture", 42, 78, 700, 13, "7DE0DD", True)
-            box(s["tag"], .5, .35, 12.2, .4, 12, color="7DE0DD")
-            box(s["title"], .5, .85, 12.2, 1.25, 25, True, color="FFFFFF")
-            box(s["subtitle"], .5, 2.55, 10.2, 1.5, 20, True, color="EAF7F7")
-        elif layout == "cards":
-            cards = s["cards"]
-            for n, card in enumerate(cards):
-                x = 42 + (n % 2) * 443
-                y = 255 - (n // 2) * 145
-                pdf_card(x, y, 410, 118, card[0], card[1], card[2])
-                sx = .6 + (n % 2) * 6.1
-                sy = 2.55 + (n // 2) * 2.0
-                shape = slide.shapes.add_shape(5, Inches(sx), Inches(sy), Inches(5.7), Inches(1.55))
-                shape.fill.solid(); shape.fill.fore_color.rgb = RGBColor.from_string("FFFFFF")
-                shape.line.color.rgb = RGBColor.from_string("D9E5EC")
-                box(f"{card[0]}  {card[1]}\n{card[2]}", sx + .15, sy + .15, 5.4, 1.2, 13, color=NAVY)
-        elif layout == "pipeline":
-            stages = s["stages"]
-            for n, stage in enumerate(stages):
-                x = 42 + n * 181
-                pdf_card(x, 225, 155, 128, stage[0], stage[1], stage[2])
-                if n < len(stages) - 1:
-                    c.setStrokeColor(colors.HexColor("#36A4A6")); c.setLineWidth(2)
-                    c.line(x + 155, 289, x + 176, 289)
-                sh = slide.shapes.add_shape(5, Inches(.55 + n * 2.5), Inches(3.05), Inches(2.15), Inches(1.25))
-                sh.fill.solid(); sh.fill.fore_color.rgb = RGBColor.from_string("EAF4F8")
-                box(f"{stage[0]}\n{stage[1]}\n{stage[2]}", .65 + n * 2.5, 3.15, 1.95, 1.0, 11, color=NAVY)
-            c.setFillColor(colors.HexColor("#E1F6F4")); c.roundRect(85, 105, 790, 55, 10, fill=1, stroke=0)
-            text_pdf(c, s["callout"], 105, 142, 750, 12, NAVY, True)
-            box(s["callout"], .9, 5.7, 11.6, .55, 12, True, color=NAVY)
-        elif layout == "compare":
-            x0, y0, widths = 42, 125, [145, 205, 235, 290]
-            x = x0
-            for col, w in zip(s["columns"], widths):
-                c.setFillColor(colors.HexColor("#176B95")); c.rect(x, 375, w, 34, fill=1, stroke=0)
-                text_pdf(c, col, x + 8, 398, w - 16, 10, "FFFFFF", True)
-                x += w
-            for r, row in enumerate(s["rows"]):
-                y = 335 - r * 51
-                x = x0
-                fill = "EAF4F8" if r % 2 == 0 else "FFFFFF"
-                for cell, w in zip(row, widths):
-                    c.setFillColor(colors.HexColor("#" + fill)); c.rect(x, y, w, 47, fill=1, stroke=0)
-                    text_pdf(c, cell, x + 7, y + 38, w - 14, 8.5 if len(cell) > 55 else 9.5, NAVY if r == 3 else "365268", r == 3)
-                    x += w
-            text_pdf(c, s["footnote"], 42, 105, 865, 9, "567086")
-            for r, row in enumerate(s["rows"]):
-                sx = .6; sy = 2.55 + r * .55
-                box(" | ".join(row), sx, sy, 12.1, .5, 9, color=NAVY)
-        elif layout == "metrics":
-            for n, metric in enumerate(s["metrics"]):
-                x = 42 + (n % 2) * 265; y = 320 - (n // 2) * 105
-                pdf_card(x, y, 240, 80, metric[0], metric[1], metric[2])
-                sx = .55 + (n % 2) * 3.55; sy = 2.55 + (n // 2) * 1.35
-                sh = slide.shapes.add_shape(5, Inches(sx), Inches(sy), Inches(3.25), Inches(.88))
-                sh.fill.solid(); sh.fill.fore_color.rgb = RGBColor.from_string("FFFFFF")
-                box(f"{metric[0]}  {metric[1]}\n{metric[2]}", sx + .1, sy + .1, 3.05, .65, 10, color=NAVY)
-            image = ROOT / s["image"]
-            c.setFillColor(colors.HexColor("#FFFFFF")); c.roundRect(590, 105, 317, 250, 10, fill=1, stroke=0)
-            c.drawImage(ImageReader(str(image)), 606, 125, width=285, height=210, preserveAspectRatio=True, anchor="c", mask="auto")
-            slide.shapes.add_picture(str(image), Inches(8.35), Inches(2.2), width=Inches(4.3))
-        elif layout == "cases":
-            for n, case in enumerate(s["cases"]):
-                x = 42 + n * 443
-                pdf_card(x, 122, 410, 245, case[0], case[1], case[2] + "\n\n→ " + case[3], accent="36A4A6")
-                sh = slide.shapes.add_shape(5, Inches(.6 + n * 6.15), Inches(2.3), Inches(5.7), Inches(3.2))
-                sh.fill.solid(); sh.fill.fore_color.rgb = RGBColor.from_string("FFFFFF")
-                box(f"{case[0]}\n{case[1]}\n\n{case[2]}\n\n→ {case[3]}", .75 + n * 6.15, 2.48, 5.4, 2.75, 11, color=NAVY)
-        elif layout == "bars":
-            max_value = max(row[1] for row in s["bars"])
-            for n, row in enumerate(s["bars"]):
-                y = 335 - n * 54
-                text_pdf(c, row[0], 42, y + 27, 280, 10, NAVY, True)
-                c.setFillColor(colors.HexColor("#DDEBF1")); c.roundRect(325, y, 410, 25, 12, fill=1, stroke=0)
-                c.setFillColor(colors.HexColor("#1D8D9B")); c.roundRect(325, y, 410 * row[1] / max_value, 25, 12, fill=1, stroke=0)
-                text_pdf(c, f"{row[1]} / 5", 750, y + 22, 70, 12, NAVY, True)
-                text_pdf(c, row[2], 825, y + 21, 80, 8, "567086")
-            c.setFillColor(colors.HexColor("#FFF4DC")); c.roundRect(42, 95, 865, 56, 10, fill=1, stroke=0)
-            text_pdf(c, s["statnote"], 60, 132, 830, 10, "805A14", True)
-            box(s["statnote"], .8, 5.65, 11.7, .65, 11, True, color="805A14")
-        elif layout == "prevention":
-            widths = [130, 250, 485]; x0 = 42
-            for i, head in enumerate(["Этап", "Событие риска", "Профилактика"]):
-                x = x0 + sum(widths[:i]); c.setFillColor(colors.HexColor("#176B95")); c.rect(x, 390, widths[i], 30, fill=1, stroke=0)
-                text_pdf(c, head, x + 8, 410, widths[i] - 16, 10, "FFFFFF", True)
-            for r, row in enumerate(s["rows"]):
-                y = 350 - r * 42; x = x0; fill = "FFFFFF" if r % 2 else "EAF4F8"
-                for cell, w in zip(row, widths):
-                    c.setFillColor(colors.HexColor("#" + fill)); c.rect(x, y, w, 38, fill=1, stroke=0)
-                    text_pdf(c, cell, x + 8, y + 29, w - 16, 8.5 if len(cell) > 50 else 9.5, NAVY, r == 0)
-                    x += w
-            for r, row in enumerate(s["rows"]):
-                box(" | ".join(row), .6, 2.2 + r * .48, 12.1, .4, 9, color=NAVY)
-        elif layout == "roadmap":
-            for n, step in enumerate(s["steps"]):
-                x = 42 + n * 220
-                c.setFillColor(colors.HexColor("#176B95")); c.circle(x + 22, 315, 21, fill=1, stroke=0)
-                text_pdf(c, step[0], x + 12, 322, 20, 14, "FFFFFF", True)
-                pdf_card(x, 175, 190, 105, step[0], step[1], step[2])
+        if kind == "hero":
+            text_pdf(c, s["subtitle"], 50, 320, 690, 24, TEXT, True)
+            c.setStrokeColor(colors.HexColor("#" + MINT)); c.setLineWidth(2); c.line(50, 222, 730, 222)
+            items = [("01", "TRACE", "история детали"), ("02", "EXPLAIN", "основание B"), ("03", "REVIEW", "поздний сигнал")]
+            for n, (num, title, body) in enumerate(items):
+                x = 50 + n * 285; panel(c, x, 105, 245, 105, PANEL2)
+                text_pdf(c, num, x + 18, 185, 45, 17, MINT, True)
+                text_pdf(c, title, x + 70, 182, 155, 15, TEXT, True)
+                text_pdf(c, body, x + 70, 153, 155, 10, MUTED)
+            ptext(slide, s["subtitle"], .7, 2.5, 9.7, 1.1, 22, TEXT, True)
+            for n, item in enumerate(items):
+                pcard(slide, .7 + n * 3.8, 4.85, 3.35, 1.3, item[0], item[1], item[2])
+        elif kind == "blindspot":
+            draw_blindspot(c, slide, s, index, total)
+        elif kind == "architecture":
+            xs = [48, 270, 492, 714]
+            for n, node in enumerate(s["nodes"]):
+                x = xs[n]; panel(c, x, 205, 185, 145, PANEL2)
+                text_pdf(c, node[0], x + 16, 326, 150, 11, MINT if n != 2 else ORANGE, True)
+                text_pdf(c, node[1], x + 16, 294, 150, 15, TEXT, True)
+                text_pdf(c, node[2], x + 16, 255, 150, 10, MUTED)
                 if n < 3:
-                    c.setStrokeColor(colors.HexColor("#36A4A6")); c.setLineWidth(2); c.line(x + 45, 315, x + 220, 315)
-                sh = slide.shapes.add_shape(5, Inches(.6 + n * 3.05), Inches(2.9), Inches(2.65), Inches(1.55))
-                sh.fill.solid(); sh.fill.fore_color.rgb = RGBColor.from_string("FFFFFF")
-                box(f"{step[0]}  {step[1]}\n{step[2]}", .72 + n * 3.05, 3.1, 2.4, 1.1, 11, color=NAVY)
-            text_pdf(c, s["callout"], 42, 130, 865, 11, BLUE, True)
-            box(s["callout"], .8, 5.6, 11.8, .65, 11, True, color=BLUE)
-        elif layout == "closing":
-            for n, bullet in enumerate(s["bullets"]):
-                y = 345 - n * 62
-                c.setFillColor(colors.HexColor("#1D8D9B")); c.circle(57, y - 5, 7, fill=1, stroke=0)
-                text_pdf(c, bullet, 78, y + 5, 820, 13 if n < 2 else 10, NAVY, n < 2)
-            box("\n".join("• " + b for b in s["bullets"]), .6, 2.35, 12, 3.2, 15, color=NAVY)
-        else:
-            text_pdf(c, "\n\n".join("• " + t for t in s.get("bullets", [])), 42, 357, 860, 18)
-            box("\n".join("• " + t for t in s.get("bullets", [])), .6, 2.3, 12.1, 3.1, 18)
+                    c.setStrokeColor(colors.HexColor("#" + MINT)); c.setLineWidth(2); c.line(x + 185, 277, x + 215, 277)
+            text_pdf(c, s["footer"], 65, 145, 830, 12, ORANGE, True)
+            for n, node in enumerate(s["nodes"]):
+                pcard(slide, .68 + n * 3.05, 3.1, 2.7, 1.65, node[0], node[1], node[2], ORANGE if n == 2 else MINT)
+                if n < len(s["nodes"]) - 1:
+                    ptext(slide, "→", 3.4 + n * 3.05, 3.68, .29, .35, 16, MINT, True, PP_ALIGN.CENTER)
+        elif kind == "compare":
+            for n, comp in enumerate(s["competitors"]):
+                x = 50 + n * 295; panel(c, x, 270, 260, 118, PANEL)
+                text_pdf(c, comp[0], x + 16, 365, 220, 11, MINT, True)
+                text_pdf(c, comp[1], x + 16, 330, 220, 15, TEXT, True)
+                text_pdf(c, comp[2], x + 16, 292, 220, 10, RED)
+            panel(c, 50, 105, 860, 112, PANEL2, MINT)
+            text_pdf(c, "EFQA", 75, 190, 130, 25, MINT, True)
+            for n, point in enumerate(s["efqa"]):
+                circle(c, 240 + n * 210, 172, 6, ORANGE)
+                text_pdf(c, point, 255 + n * 210, 181, 170, 10, TEXT, True)
+            for n, comp in enumerate(s["competitors"]):
+                pcard(slide, .7 + n * 4.05, 2.65, 3.65, 1.35, comp[0], comp[1], comp[2], RED)
+            shape(slide, "card", .7, 5.2, 11.95, 1.0, PANEL2, MINT)
+            ptext(slide, "EFQA", .95, 5.43, 1.2, .35, 18, MINT, True)
+            ptext(slide, "AI наблюдает  •  B фиксирует  •  ОТК решает  •  replay пересматривает", 2.1, 5.4, 9.9, .35, 14, TEXT, True)
+        elif kind == "case_crs7":
+            panel(c, 50, 125, 570, 260, PANEL)
+            text_pdf(c, s["event"], 75, 350, 515, 14, ORANGE, True)
+            for n, fact in enumerate(s["facts"]):
+                circle(c, 85, 290 - n * 48, 5, MINT)
+                text_pdf(c, fact, 105, 298 - n * 48, 475, 11, TEXT)
+            panel(c, 665, 125, 245, 260, PANEL2, ORANGE)
+            text_pdf(c, "?", 720, 315, 130, 72, ORANGE, True)
+            text_pdf(c, "одна авария\n≠ одна версия", 690, 220, 190, 15, TEXT, True)
+            text_pdf(c, s["lesson"], 50, 85, 860, 12, MINT, True)
+            shape(slide, "case", .7, 2.5, 7.45, 3.2, PANEL, LINE)
+            ptext(slide, "ОТКАЗ / 2015", 1.0, 2.72, 6.8, .3, 10, ORANGE, True)
+            ptext(slide, s["event"], 1.0, 3.06, 6.9, .55, 14, TEXT, True)
+            for n, fact in enumerate(s["facts"]):
+                ptext(slide, "•", 1.0, 3.77 + n * .46, .25, .25, 14, MINT, True)
+                ptext(slide, fact, 1.34, 3.73 + n * .46, 6.4, .48, 10.5, TEXT)
+            shape(slide, "lesson", 8.7, 2.5, 3.9, 3.2, PANEL2, ORANGE)
+            ptext(slide, "?", 9.83, 2.75, 1.3, .96, 50, ORANGE, True, PP_ALIGN.CENTER)
+            ptext(slide, "одна авария ≠ одна версия", 9.05, 3.9, 3.2, .75, 15, TEXT, True, PP_ALIGN.CENTER)
+            ptext(slide, "EFQA хранит альтернативы, версии анализа и область применимости контроля.", 9.06, 4.82, 3.15, .58, 10, MINT, True)
+        elif kind == "case_cert":
+            text_pdf(c, s["amount"], 55, 330, 270, 43, ORANGE, True)
+            text_pdf(c, s["amount_label"], 60, 250, 240, 11, MUTED)
+            c.setStrokeColor(colors.HexColor("#" + RED)); c.setLineWidth(4); c.line(380, 280, 850, 280)
+            for n, item in enumerate(s["chain"]):
+                x = 380 + n * 117; circle(c, x, 280, 20, RED if n > 1 else MINT)
+                text_pdf(c, str(n + 1), x - 10, 286, 20, 10, NAVY, True)
+                text_pdf(c, item, x - 50, 225, 100, 9, TEXT, True)
+            panel(c, 55, 95, 850, 75, PANEL2, MINT)
+            text_pdf(c, "Урок", 75, 148, 70, 11, MINT, True)
+            text_pdf(c, s["lesson"], 145, 148, 735, 11, TEXT, True)
+            ptext(slide, s["amount"], .8, 2.55, 3.3, .8, 38, ORANGE, True)
+            ptext(slide, s["amount_label"], .85, 3.45, 3.3, .5, 11, MUTED)
+            for n, item in enumerate(s["chain"]):
+                x = 4.7 + n * 1.55
+                if n < len(s["chain"]) - 1:
+                    sh = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(x + .35), Inches(4.05), Inches(1.0), Inches(.04))
+                    sh.fill.solid(); sh.fill.fore_color.rgb = RGBColor.from_string(RED); sh.line.fill.background()
+                circ = slide.shapes.add_shape(MSO_SHAPE.OVAL, Inches(x), Inches(3.8), Inches(.5), Inches(.5))
+                circ.fill.solid(); circ.fill.fore_color.rgb = RGBColor.from_string(RED if n > 1 else MINT); circ.line.fill.background()
+                ptext(slide, str(n + 1), x, 3.91, .5, .2, 9, NAVY, True, PP_ALIGN.CENTER)
+                ptext(slide, item, x - .4, 4.45, 1.3, .45, 9, TEXT, True, PP_ALIGN.CENTER)
+            shape(slide, "card", .75, 5.65, 11.85, .7, PANEL2, MINT)
+            ptext(slide, "Урок  •  документ не заменяет независимое доказательство", 1.0, 5.88, 11.2, .25, 12, TEXT, True)
+        elif kind == "case_ru":
+            panel(c, 50, 115, 400, 275, PANEL)
+            panel(c, 510, 115, 400, 275, PANEL2, ORANGE)
+            text_pdf(c, s["left"][0], 75, 350, 350, 16, MINT, True)
+            for n, line in enumerate(s["left"][1:]):
+                text_pdf(c, "→ " + line, 78, 305 - n * 45, 340, 12, TEXT)
+            text_pdf(c, s["right"][0], 535, 350, 350, 16, ORANGE, True)
+            for n, line in enumerate(s["right"][1:]):
+                text_pdf(c, "→ " + line, 538, 305 - n * 45, 340, 12, TEXT if n < 2 else ORANGE, n == 2)
+            text_pdf(c, "?", 355, 175, 70, 42, MINT, True)
+            text_pdf(c, "НЕ УСТАНОВЛЕНО", 185, 155, 220, 10, MINT, True)
+            text_pdf(c, "63", 805, 175, 90, 40, ORANGE, True)
+            text_pdf(c, "ДЕЙСТВИЙ ≠ ДЕФЕКТОВ", 545, 155, 270, 10, ORANGE, True)
+            pcard(slide, .75, 2.65, 5.75, 2.65, s["left"][0], "Возможные факторы", "\n".join("→ " + x for x in s["left"][1:]), MINT)
+            pcard(slide, 6.85, 2.65, 5.75, 2.65, s["right"][0], "Что важно не перепутать", "\n".join("→ " + x for x in s["right"][1:]), ORANGE)
+            ptext(slide, "?", 5.35, 4.7, .55, .55, 30, MINT, True, PP_ALIGN.CENTER)
+            ptext(slide, "НЕ УСТАНОВЛЕНО", 4.15, 5.25, 2.95, .25, 8, MINT, True, PP_ALIGN.CENTER)
+            ptext(slide, "63", 11.35, 4.68, .9, .6, 28, ORANGE, True, PP_ALIGN.CENTER)
+            ptext(slide, "ДЕЙСТВИЙ ≠ ДЕФЕКТОВ", 9.25, 5.25, 3.1, .25, 8, ORANGE, True, PP_ALIGN.CENTER)
+        elif kind == "stats":
+            text_pdf(c, s["big"], 55, 350, 190, 110, MINT, True)
+            text_pdf(c, s["big_label"], 65, 220, 170, 13, MUTED, True)
+            for n, bar in enumerate(s["bars"]):
+                y = 345 - n * 58; text_pdf(c, bar[0], 285, y + 22, 260, 9.5, TEXT, True)
+                c.setFillColor(colors.HexColor("#" + PANEL2)); c.roundRect(555, y, 260, 23, 11, fill=1, stroke=0)
+                c.setFillColor(colors.HexColor("#" + (ORANGE if n == 2 else MINT))); c.roundRect(555, y, 260 * bar[1] / 2, 23, 11, fill=1, stroke=0)
+                text_pdf(c, bar[2], 835, y + 19, 50, 10, MINT, True)
+            panel(c, 285, 85, 600, 55, PANEL2, ORANGE)
+            text_pdf(c, s["foot"], 305, 124, 560, 10, ORANGE, True)
+            ptext(slide, s["big"], .9, 2.4, 2.5, 1.1, 54, MINT, True)
+            ptext(slide, s["big_label"], 1.0, 3.55, 2.4, .45, 12, MUTED, True)
+            for n, bar in enumerate(s["bars"]):
+                y = 2.65 + n * .62
+                ptext(slide, bar[0], 3.4, y, 3.6, .25, 10, TEXT, True)
+                shape(slide, "card", 7.0, y + .03, 4.2, .2, PANEL2, PANEL2)
+                shape(slide, "card", 7.0, y + .03, 4.2 * bar[1] / 2, .2, ORANGE if n == 2 else MINT, ORANGE if n == 2 else MINT)
+                ptext(slide, bar[2], 11.45, y - .02, .8, .3, 11, MINT, True)
+            ptext(slide, s["foot"], 3.4, 5.55, 8.6, .6, 11, ORANGE, True)
+        elif kind == "prevention":
+            for n, layer in enumerate(s["layers"]):
+                x = 55 + (n % 3) * 295; y = 250 - (n // 3) * 125
+                panel(c, x, y, 255, 95, PANEL2 if n in (4, 5) else PANEL)
+                text_pdf(c, layer[0], x + 16, y + 75, 35, 12, MINT if n != 4 else ORANGE, True)
+                text_pdf(c, layer[1], x + 60, y + 75, 175, 10, TEXT, True)
+                text_pdf(c, layer[2], x + 16, y + 42, 220, 10, MUTED)
+            text_pdf(c, "Каждый слой оставляет свидетельство, а не только зелёный статус.", 55, 105, 850, 13, ORANGE, True)
+            for n, layer in enumerate(s["layers"]):
+                x = .75 + (n % 3) * 4.05; y = 2.45 + (n // 3) * 1.85
+                pcard(slide, x, y, 3.65, 1.55, layer[0], layer[1], layer[2], ORANGE if n in (4, 5) else MINT)
+            ptext(slide, "Каждый слой оставляет свидетельство, а не только зелёный статус.", .85, 6.38, 11.5, .3, 11, ORANGE, True)
+        elif kind == "proof":
+            for n, metric in enumerate(s["metrics"]):
+                x = 50 + n * 270; panel(c, x, 295, 245, 85, PANEL2)
+                text_pdf(c, metric[0], x + 16, 358, 85, 27, MINT, True)
+                text_pdf(c, metric[1], x + 105, 354, 120, 12, TEXT, True)
+                text_pdf(c, metric[2], x + 16, 320, 215, 8.5, MUTED)
+            flow_x = [55, 165, 275, 385, 495]
+            for n, item in enumerate(s["flow"]):
+                panel(c, flow_x[n], 165, 95, 47, PANEL)
+                text_pdf(c, item, flow_x[n] + 7, 195, 81, 8, TEXT, True)
+                if n < 4:
+                    c.setStrokeColor(colors.HexColor("#" + MINT)); c.line(flow_x[n] + 95, 187, flow_x[n] + 110, 187)
+            panel(c, 680, 90, 230, 185, PANEL2, MINT)
+            text_pdf(c, "✓", 745, 239, 120, 67, MINT, True)
+            text_pdf(c, "ACK принят", 707, 162, 180, 21, TEXT, True)
+            text_pdf(c, "результат в ERP-эмуляторе", 705, 130, 180, 9, MUTED)
+            for n, metric in enumerate(s["metrics"]):
+                pcard(slide, .7 + n * 4.05, 2.35, 3.65, 1.5, metric[0], metric[1], metric[2])
+            for n, item in enumerate(s["flow"]):
+                ptext(slide, item, .6 + n * 1.53, 5.05, 1.4, .5, 9, TEXT, True, PP_ALIGN.CENTER)
+                if n < 4:
+                    ptext(slide, "→", 1.92 + n * 1.53, 5.05, .3, .4, 14, MINT, True, PP_ALIGN.CENTER)
+            shape(slide, "ack", 9.1, 4.55, 3.2, 1.45, PANEL2, MINT)
+            ptext(slide, "✓", 9.25, 4.65, .7, .8, 40, MINT, True)
+            ptext(slide, "ACK принят", 10.0, 4.92, 2.2, .45, 19, TEXT, True)
+            ptext(slide, "результат в ERP-эмуляторе", 9.3, 5.48, 2.8, .28, 9, MUTED)
+        elif kind == "close":
+            text_pdf(c, s["lines"][0], 75, 335, 810, 25, MINT, True)
+            text_pdf(c, s["lines"][1], 75, 270, 810, 25, ORANGE, True)
+            text_pdf(c, s["lines"][2], 75, 205, 810, 25, TEXT, True)
+            c.setStrokeColor(colors.HexColor("#" + MINT)); c.setLineWidth(2); c.line(75, 145, 885, 145)
+            text_pdf(c, s["last"], 75, 115, 810, 16, MINT, True)
+            ptext(slide, s["lines"][0], 1.0, 2.6, 11.3, .5, 22, MINT, True)
+            ptext(slide, s["lines"][1], 1.0, 3.35, 11.3, .5, 22, ORANGE, True)
+            ptext(slide, s["lines"][2], 1.0, 4.1, 11.3, .5, 22, TEXT, True)
+            ptext(slide, s["last"], 1.0, 5.35, 11.3, .45, 15, MINT, True)
 
-        pdf_footer()
-        box(f"EFQA • синтетический стенд / источники отраслевых кейсов                                      {index}/12", .5, 7, 12.2, .3, 9, color="6B8292")
+        source_notes = {
+            "case_crs7": "Источник: NASA Independent Review Team, CRS-7 Public Summary, 2018",
+            "case_cert": "Источник: NASA Release 19-036, OCO / Glory, 2019",
+            "case_ru": "Источники: Роскосмос / TASS, 2017; FAA, Starship Mishap, 2023",
+            "compare": "Источники: 1С:ERP / production; Octave Reliance / QMS. Детали — в space-quality-research.md",
+        }
+        if kind in source_notes:
+            text_pdf(c, source_notes[kind], 48, 53, 860, 8, MUTED)
+            ptext(slide, source_notes[kind], .65, 6.77, 11.9, .2, 8, MUTED)
+        if kind != "blindspot":
+            pdf_footer(c, index, total)
+            ptext(slide, f"EFQA  /  Evidence-First Quality Architecture                                      {index:02d}/{total:02d}", .65, 7.12, 12, .18, 8, MUTED)
         slide.notes_slide.notes_text_frame.text = s["notes"]
         end = elapsed + s["seconds"]
         notes += [f"## {index}. {s['title']} — {elapsed // 60}:{elapsed % 60:02d}–{end // 60}:{end % 60:02d}", "", s["notes"], ""]
         elapsed = end
         c.showPage()
-    c.save()
-    prs.save(OUT / "presentation.pptx")
+    c.save(); prs.save(OUT / "presentation.pptx")
     (OUT / "speaker-notes.md").write_text("\n".join(notes), encoding="utf-8")
 
 
 if __name__ == "__main__":
-    make_book()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--slides-only", action="store_true", help="Build the presentation without rebuilding the theory archive")
+    args = parser.parse_args()
+    if not args.slides_only:
+        make_book()
     make_slides()
-    print("Built theory.pdf, presentation.pdf/.pptx, speaker-notes.md, sources-manifest.json")
+    print("Built presentation.pdf, presentation.pptx and speaker-notes.md")

@@ -1,0 +1,180 @@
+{
+  "template_page": "https://www.slidescarnival.com/template/tech-startup-brand/154090",
+  "download": "https://www.slidescarnival.com/download/sc01527/tech-startup-brand/pptx",
+  "sha256": "6dc07658f10a2895d7fc407dc94015fe8dc7307e3d4018a61ecd5b7b2ec0e1cb",
+  "output_slides": 16,
+  "main_slides": 14,
+  "main_seconds": 485,
+  "render_engine": "Microsoft PowerPoint (export_template.ps1)",
+  "slide_mapping": [
+    {
+      "slide": 1,
+      "template_slide": 1,
+      "title": "EFQA: качество с доказательствами",
+      "seconds": 25,
+      "speech": "EFQA связывает сигналы контроля, производственные операции и решения ОТК. Мы показываем не только последний статус детали, но и основания, по которым этот статус появился. Данные демонстратора синтетические, анализатор заменён эмулятором.",
+      "sources": []
+    },
+    {
+      "slide": 2,
+      "template_slide": 5,
+      "title": "Обнаружение не равно происхождению",
+      "seconds": 30,
+      "speech": "Признак найден на финальном контроле. Но он мог существовать во входной детали или появиться при обработке. Последовательность событий не устанавливает физическую причину и не доказывает вину оператора. Для вывода нужны сопоставимые осмотры и контекст операций.",
+      "sources": []
+    },
+    {
+      "slide": 3,
+      "template_slide": 6,
+      "title": "Сигнал → гипотеза → решение",
+      "seconds": 35,
+      "speech": "Подозрительный след — наблюдение. Возможная связь со станком — гипотеза. Подтверждение дефекта и выпуск изделия — отдельные решения уполномоченного контролёра. Несколько наблюдений одной проблемы не должны умножать число дефектов.",
+      "sources": []
+    },
+    {
+      "slide": 4,
+      "template_slide": 9,
+      "title": "Основания тогда и сейчас",
+      "seconds": 40,
+      "speech": "Basis B — сохранённый набор событий, версий правил и известных пробелов перед решением. Если позже поступает входной осмотр, он может изменить гипотезу. EFQA сохраняет старое B, показывает текущую картину и необходимость пересмотра. Полный межиздельный impact по составу — отдельный эксперимент, не промышленная функция.",
+      "sources": []
+    },
+    {
+      "slide": 5,
+      "template_slide": 19,
+      "title": "Сильные альтернативы",
+      "seconds": 40,
+      "speech": "1С:ERP умеет производственный и серийный учёт. Octave Reliance, ранее ETQ, поддерживает CAPA, аудит и управление несоответствиями. Это сильные альтернативы. Преимущество EFQA для данного кейса — готовый демонстрационный сценарий B, неизвестности и пересмотра. Мы не измеряли стоимость конкурентов и не утверждаем, что они не способны реализовать такой сценарий.",
+      "sources": [
+        "https://v8.1c.ru/erp/production/",
+        "https://www.octave.com/products/asset-performance-management/reliance"
+      ]
+    },
+    {
+      "slide": 6,
+      "template_slide": 20,
+      "title": "OCO и Glory: доверие к поставке",
+      "seconds": 45,
+      "speech": "Это два запуска Taurus XL компании Orbital Sciences с миссиями NASA, 2009 и 2011 годов. NASA связала техническую первопричину с материалами Sapa Profiles и изменёнными результатами испытаний алюминиевых профилей узла разделения. Более 700 миллионов долларов — оценка потерь NASA. Нужны независимые испытания и прослеживаемость поставки; неизменяемость записи не доказывает правдивость изначально ложного сертификата.",
+      "sources": [
+        "https://www.nasa.gov/news-release/nasa-investigation-uncovers-cause-of-two-science-mission-launch-failures/",
+        "https://www.nasa.gov/wp-content/uploads/2019/04/2011-1459.jpg"
+      ]
+    },
+    {
+      "slide": 7,
+      "template_slide": 18,
+      "title": "CRS-7: альтернативные инициаторы",
+      "seconds": 45,
+      "speech": "NASA IRT признала отказ крепления COPV правдоподобной последовательностью, но не выделила дефект материала как единственный наиболее вероятный инициатор. Рассматривались повреждение и монтаж. Отдельный инженерный вывод касался применения промышленной детали в критическом криогенном узле без достаточной проверки. EFQA сохраняет альтернативные оценки и их основания. Эти выводы не доказывают, что система предотвратила бы аварию.",
+      "sources": [
+        "https://www.nasa.gov/wp-content/uploads/2018/03/public_summary_nasa_irt_spacex_crs-7_final.pdf"
+      ]
+    },
+    {
+      "slide": 8,
+      "template_slide": 9,
+      "title": "Прогресс МС-04 и Starship",
+      "seconds": 40,
+      "speech": "По Прогрессу МС-04 сообщение Роскосмоса, процитированное ТАСС, называло возможные частицы или нарушение сборки насоса, в том числе неправильные зазоры и дисбаланс. Для Starship 20 апреля 2023 FAA сообщила 63 корректирующих действия и несколько первопричин. Число действий не превращается в количество дефектов. Полный CAPA и межиздельный охват — направления развития EFQA, а не реализованный промышленный модуль.",
+      "sources": [
+        "https://tass.com/science/924519",
+        "https://www.faa.gov/newsroom/faa-closes-spacex-starship-mishap-investigation"
+      ]
+    },
+    {
+      "slide": 9,
+      "template_slide": 17,
+      "title": "Оценка этапов на открытых кейсах",
+      "seconds": 45,
+      "speech": "Это пять выбранных событий, а не независимая репрезентативная выборка. OCO и Glory связаны одним поставочным механизмом. Материалы и сертификаты подтверждены NASA в двух событиях. Изготовление и сборка фигурируют как возможные инициаторы в CRS-7 и Прогрессе, а не как две доказанные одинаковые причины. В CRS-7 также есть фактор проектирования и проверки применимости. Starship не раскладываем по производственным операциям. Доли 40, 40, 20, 20 процентов перекрываются и не являются отраслевой вероятностью брака.",
+      "sources": [
+        "https://www.nasa.gov/news-release/nasa-investigation-uncovers-cause-of-two-science-mission-launch-failures/",
+        "https://www.nasa.gov/wp-content/uploads/2018/03/public_summary_nasa_irt_spacex_crs-7_final.pdf",
+        "https://tass.com/science/924519",
+        "https://www.faa.gov/newsroom/faa-closes-spacex-starship-mishap-investigation"
+      ]
+    },
+    {
+      "slide": 10,
+      "template_slide": 21,
+      "title": "Профилактика по этапам",
+      "seconds": 40,
+      "speech": "Система качества помогает организовать доказательства и не пропустить обязательную проверку. Физически предотвращают брак испытания материала, правильный метод неразрушающего контроля, чистота, защита от ошибочной сборки и контроль процесса. EFQA P8 поддерживает основания и полноту контроля; реальная телеметрия, независимые испытания и партии потребуют интеграции и пилота.",
+      "sources": []
+    },
+    {
+      "slide": 11,
+      "template_slide": 13,
+      "title": "Решение связано с основанием",
+      "seconds": 25,
+      "speech": "На слайде реальный сохранённый кадр демонстратора P6 — он явно подписан. В таблице решения confirm, resolve, rework, released связаны со своим основанием. На защите можно открыть исходный скринкаст. Этот кадр не выдаётся за экран промышленной линии и не является новым прогоном P8.",
+      "sources": []
+    },
+    {
+      "slide": 12,
+      "template_slide": 14,
+      "title": "Программное доказательство P8",
+      "seconds": 25,
+      "speech": "Числа относятся к опубликованному протоколу P8: 289 автоматических тестов, отдельно 19 PASS браузерного runner. P8 также описывает TLS и восстановление резервной копии. Сейчас эти прогоны приложения не повторялись — мы показываем сохранённые результаты, а не новый прогон. Доставка с ACK проверена на внешнем ERP-эмуляторе. Промышленная точность и экономия не заявляются.",
+      "sources": [
+        "docs/architecture/p8-pilot-completion.md"
+      ]
+    },
+    {
+      "slide": 13,
+      "template_slide": 2,
+      "title": "Пилот одного участка",
+      "seconds": 30,
+      "speech": "Стартуем с одного маршрута и проверяем идентификацию изделия. В теневом режиме сравниваем с ОТК и специально прогоняем пропуски, повторы, задержки и потерю связи. Полезность измеряем временем поиска оснований, полнотой контроля, пропусками и ложными тревогами. Затем принимаем решение о допуске. Промышленные сроки и размер экономии без обследования неизвестны.",
+      "sources": []
+    },
+    {
+      "slide": 14,
+      "template_slide": 1,
+      "title": "Каждое решение имеет основание",
+      "seconds": 20,
+      "speech": "EFQA сохраняет факты, показывает контекст и фиксирует основания решения контролёра. Новые сведения требуют пересмотра, но не переписывают прошлое. Следующий результат — пилот одного производственного участка.",
+      "sources": []
+    },
+    {
+      "slide": 15,
+      "template_slide": 19,
+      "title": "Источники",
+      "seconds": 0,
+      "speech": "Приложение для вопросов. Полные ссылки доступны по клику и в заметках. Методика и границы выборки — в space-quality-research.md. Свойства продуктов в сравнении взяты с официальных продуктовых страниц и не заменяют сравнительный пилот.",
+      "sources": [
+        "https://www.nasa.gov/wp-content/uploads/2018/03/public_summary_nasa_irt_spacex_crs-7_final.pdf",
+        "https://www.nasa.gov/news-release/nasa-investigation-uncovers-cause-of-two-science-mission-launch-failures/",
+        "https://tass.com/science/924519",
+        "https://www.faa.gov/newsroom/faa-closes-spacex-starship-mishap-investigation",
+        "https://v8.1c.ru/erp/production/",
+        "https://www.octave.com/products/asset-performance-management/reliance"
+      ]
+    },
+    {
+      "slide": 16,
+      "template_slide": 23,
+      "title": "Авторы дизайна",
+      "seconds": 0,
+      "speech": "Оригинальный PowerPoint-шаблон SlidesCarnival / Canva Dark Modern Tech Startup Brand. Сохранена страница авторства. Исходные фотографии VR не использованы в содержательных слайдах. Фото Glory — NASA. Интерфейс — синтетический демонстратор EFQA. Шрифт EFQA Oswald — переименованный статический вариант Oswald по SIL Open Font License; полный текст лицензии рядом с исходниками шрифта.",
+      "sources": [
+        "https://www.slidescarnival.com/template/tech-startup-brand/154090",
+        "https://www.nasa.gov/wp-content/uploads/2019/04/2011-1459.jpg",
+        "https://raw.githubusercontent.com/google/fonts/main/ofl/oswald/OFL.txt"
+      ]
+    }
+  ],
+  "sources": {
+    "nasa_irt": "https://www.nasa.gov/wp-content/uploads/2018/03/public_summary_nasa_irt_spacex_crs-7_final.pdf",
+    "nasa_oco": "https://www.nasa.gov/news-release/nasa-investigation-uncovers-cause-of-two-science-mission-launch-failures/",
+    "progress": "https://tass.com/science/924519",
+    "faa": "https://www.faa.gov/newsroom/faa-closes-spacex-starship-mishap-investigation",
+    "erp": "https://v8.1c.ru/erp/production/",
+    "qms": "https://www.octave.com/products/asset-performance-management/reliance",
+    "photo": "https://www.nasa.gov/wp-content/uploads/2019/04/2011-1459.jpg",
+    "font": "https://raw.githubusercontent.com/google/fonts/main/ofl/oswald/Oswald%5Bwght%5D.ttf",
+    "font_license": "https://raw.githubusercontent.com/google/fonts/main/ofl/oswald/OFL.txt"
+  },
+  "font_family": "EFQA Oswald"
+}
