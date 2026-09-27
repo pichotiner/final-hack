@@ -173,6 +173,7 @@ ERP/MES/CAD-коннекторы, PQ-криптография и нагрузо�
 
 ## Документы
 
+- [Презентация для защиты: 5 минут](docs/defense/5min/presentation-5min.pdf) · [PowerPoint](docs/defense/5min/presentation-5min.pptx) · [тайминг и источники](docs/defense/README.md).
 - [Требования](docs/requirements.md) и исходные PDF в корне — постановка и критерии.
 - [DP-01](docs/architecture/decision-protocol.md) и [P7](docs/architecture/p7-remediation.md) — предметные решения; [OpenAPI](contracts/openapi.yaml) — транспорт.
 - [Производственный пилот](docs/architecture/enterprise-pilot.md), [камеры и ИИ](docs/architecture/camera-ai-design.md), [границы доверия](docs/architecture/trust-model.md).
