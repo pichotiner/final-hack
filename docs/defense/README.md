@@ -2,7 +2,7 @@
 
 ## Основная защита: 5 минут
 
-- [PowerPoint — 5 минут](5min/presentation-5min.pptx) и [PDF — 5 минут](5min/presentation-5min.pdf): 8 слайдов, Montserrat, маршрут детали и данные P8. Стиль — сдержанная редакционная верстка, технические линейки и таблицы без декоративных градиентов.
+- [PowerPoint — 5 минут](5min/presentation-5min.pptx) и [PDF — 5 минут](5min/presentation-5min.pdf): 9 слайдов, Montserrat, маршрут детали, границы ядра и три особенности EFQA. Стиль — сдержанная редакционная верстка, технические линейки и таблицы без декоративных градиентов.
 - [Превью ключевых слайдов](5min/preview.png).
 - [Пояснение и текст выступления по каждому слайду](5min/slide-by-slide.md) · [краткий тайминг](5min/speaker-notes.md) · [источники и методика статистики](5min/SOURCES.md).
 - Пересборка: `python -m pip install -r docs/defense/5min/requirements.txt`, затем `python docs/defense/5min/build.py`. Montserrat Regular/SemiBold и OFL включены в `5min/fonts/`; в PDF шрифты встроены, для редактируемого PPTX установите при необходимости шрифты из этого каталога.
